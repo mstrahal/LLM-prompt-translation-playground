@@ -3,17 +3,38 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clear existing data (for clean runs)
-  await prisma.translation.deleteMany({});
-  await prisma.translationRun.deleteMany({});
-  await prisma.sourceSegment.deleteMany({});
-  await prisma.project.deleteMany({});
-  await prisma.systemPrompt.deleteMany({});
-  await prisma.localePrompt.deleteMany({});
+  // We do NOT delete Project, SourceSegment, Translation, or TranslationRun.
+  // This keeps all your created projects and translation history fully persistent!
 
-  // Seed System Prompts
-  await prisma.systemPrompt.create({
-    data: {
+  // 1. Seed/Upsert System Prompts using stable IDs
+  await prisma.systemPrompt.upsert({
+    where: { id: 'sys_forum_translator' },
+    update: {
+      prompt: `# System Instruction: Forum Comment Translator
+
+## Role & Goal
+You are an expert translator specializing in localizing online forum comments (such as Reddit) into a target language. 
+
+## Target Persona: Global Digital Native
+- **Age Demographic**: Gen Z and Millennials (18-35 years old).
+- **Tone**: Casual, conversational, authentic, highly opinionated, and often humorous.
+- **Style**: Use internet slang, digital references, popular memes, and colloquialisms matching the target culture. Ensure the translation feels native to online spaces.
+
+## Output Format Constraints
+You must respond ONLY with a valid JSON object matching the following structure:
+\`\`\`json
+{
+  "translation": "The localized translation of the comment",
+  "explanation": "Brief explanation of specific slang translation, grammar adaptation, or informal tone selection",
+  "alternatives": [
+    "Alternative stylistic translation variation 1",
+    "Alternative stylistic translation variation 2"
+  ]
+}
+\`\`\``
+    },
+    create: {
+      id: 'sys_forum_translator',
       prompt: `# System Instruction: Forum Comment Translator
 
 ## Role & Goal
@@ -40,8 +61,21 @@ You must respond ONLY with a valid JSON object matching the following structure:
     },
   });
 
-  await prisma.systemPrompt.create({
-    data: {
+  await prisma.systemPrompt.upsert({
+    where: { id: 'sys_ui_translator' },
+    update: {
+      prompt: `# System Instruction: UI Translator
+
+## Role & Goal
+You are an expert software localization specialist. Translate the provided UI text.
+
+## Constraints
+- Be concise.
+- Match the length and tone of the original text.
+- Preserve all HTML tags, string interpolation variables (e.g., {username}, %s), and placeholders.`
+    },
+    create: {
+      id: 'sys_ui_translator',
       prompt: `# System Instruction: UI Translator
 
 ## Role & Goal
@@ -55,9 +89,10 @@ You are an expert software localization specialist. Translate the provided UI te
     },
   });
 
-  // Seed Locale Prompts
+  // 2. Seed/Upsert Locale Prompts
   const localePrompts = [
     {
+      id: "loc_cs_cz",
       locale: "cs-CZ",
       prompt: `# Locale Guidelines: Czech (cs-CZ)
 
@@ -71,6 +106,7 @@ You are an expert software localization specialist. Translate the provided UI te
       isActive: true,
     },
     {
+      id: "loc_es_es",
       locale: "es-ES",
       prompt: `# Locale Guidelines: Spanish (es-ES)
 
@@ -84,6 +120,7 @@ You are an expert software localization specialist. Translate the provided UI te
       isActive: true,
     },
     {
+      id: "loc_de_de",
       locale: "de-DE",
       prompt: `# Locale Guidelines: German (de-DE)
 
@@ -96,6 +133,7 @@ You are an expert software localization specialist. Translate the provided UI te
       isActive: true,
     },
     {
+      id: "loc_sk_sk",
       locale: "sk-SK",
       prompt: `# Locale Guidelines: Slovak (sk-SK)
 
@@ -109,6 +147,7 @@ You are an expert software localization specialist. Translate the provided UI te
       isActive: true,
     },
     {
+      id: "loc_fr_fr",
       locale: "fr-FR",
       prompt: `# Locale Guidelines: French (fr-FR)
 
@@ -124,12 +163,17 @@ You are an expert software localization specialist. Translate the provided UI te
   ];
 
   for (const lp of localePrompts) {
-    await prisma.localePrompt.create({
-      data: lp,
+    await prisma.localePrompt.upsert({
+      where: { id: lp.id },
+      update: {
+        prompt: lp.prompt,
+        locale: lp.locale,
+      },
+      create: lp,
     });
   }
 
-  console.log('Seeding completed successfully!');
+  console.log('Seeding completed successfully without deleting user data!');
 }
 
 main()
