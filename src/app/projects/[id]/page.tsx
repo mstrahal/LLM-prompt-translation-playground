@@ -38,23 +38,35 @@ export default async function ProjectPage({ params }: PageProps) {
     },
   });
 
+  // Safe date serialization helper
+  const safeDateString = (val: any): string => {
+    if (!val) return new Date().toISOString();
+    if (val instanceof Date) return val.toISOString();
+    try {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? String(val) : d.toISOString();
+    } catch {
+      return String(val);
+    }
+  };
+
   // Serialize dates to prevent RSC serialization errors
   const serializedProject = {
     ...project,
-    createdAt: project.createdAt.toISOString(),
-    updatedAt: project.updatedAt.toISOString(),
+    createdAt: safeDateString(project.createdAt),
+    updatedAt: safeDateString(project.updatedAt),
     sourceSegments: project.sourceSegments.map(seg => ({
       ...seg,
-      createdAt: seg.createdAt.toISOString(),
+      createdAt: safeDateString(seg.createdAt),
     })),
   };
 
   const serializedRuns = runs.map(run => ({
     ...run,
-    createdAt: run.createdAt.toISOString(),
+    createdAt: safeDateString(run.createdAt),
     translations: run.translations.map(t => ({
       ...t,
-      createdAt: t.createdAt.toISOString(),
+      createdAt: safeDateString(t.createdAt),
     })),
   }));
 

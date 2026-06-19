@@ -237,7 +237,7 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
                 style={{ padding: '0.35rem 0.75rem', width: '220px', fontSize: '0.85rem' }}
               >
                 {runs.map((run, idx) => (
-                  <option key={run.id} value={run.id}>
+                  <option key={run.id} value={run.id} suppressHydrationWarning>
                     Run #{runs.length - idx} ({formatRunDate(run.createdAt)})
                   </option>
                 ))}
@@ -260,7 +260,7 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
                     .map((run, idx) => {
                       const actualIdx = runs.indexOf(run);
                       return (
-                        <option key={run.id} value={run.id}>
+                        <option key={run.id} value={run.id} suppressHydrationWarning>
                           Run #{runs.length - actualIdx} ({formatRunDate(run.createdAt)})
                         </option>
                       );
@@ -323,7 +323,7 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
           </div>
           <div className="stat-card" style={{ padding: '1rem 1.25rem' }}>
             <div className="stat-label" style={{ fontSize: '0.75rem' }}>Run Date</div>
-            <div className="stat-value" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap' }}>
+            <div className="stat-value" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap' }} suppressHydrationWarning>
               {formatRunDate(activeRun.createdAt)}
             </div>
           </div>
