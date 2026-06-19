@@ -1,0 +1,74 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model SystemPrompt {
+  id        String   @id @default(uuid())
+  prompt    String
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LocalePrompt {
+  id        String   @id @default(uuid())
+  locale    String
+  prompt    String
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id             String           @id @default(uuid())
+  name           String
+  targetLanguage String
+  geminiModel    String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  sourceSegments SourceSegment[]
+  translationRuns TranslationRun[]
+}
+
+model SourceSegment {
+  id           String        @id @default(uuid())
+  projectId    String
+  key          String
+  sourceText   String
+  context      String?
+  createdAt    DateTime      @default(now())
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  translations Translation[]
+}
+
+model TranslationRun {
+  id               String        @id @default(uuid())
+  projectId        String
+  modelUsed        String
+  systemPromptUsed String
+  localePromptUsed String
+  totalTokens      Int
+  totalCost        Float
+  createdAt        DateTime      @default(now())
+  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  translations     Translation[]
+}
+
+model Translation {
+  id               String         @id @default(uuid())
+  sourceSegmentId  String
+  translationRunId String
+  targetText       String
+  explanation      String?
+  alternatives     String?        // Can be a JSON-serialized string of alternative translations
+  tokensUsed       Int
+  cost             Float
+  createdAt        DateTime       @default(now())
+  sourceSegment    SourceSegment  @relation(fields: [sourceSegmentId], references: [id], onDelete: Cascade)
+  translationRun   TranslationRun @relation(fields: [translationRunId], references: [id], onDelete: Cascade)
+}
