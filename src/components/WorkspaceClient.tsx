@@ -89,6 +89,9 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // State to track applied prompt directive index for animation
+  const [appliedIndex, setAppliedIndex] = useState<number | null>(null);
+
   // Detail sheet state
   const [selectedSegId, setSelectedSegId] = useState<string | null>(null);
 
@@ -190,6 +193,19 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
     }
   };
 
+  // Handle Apply Prompt Directive to Project Locale Instructions
+  const handleApplyDirective = (directive: string, index: number) => {
+    setLocalePrompt(prev => {
+      const trimmed = prev.trim();
+      if (trimmed.includes(directive)) {
+        return prev;
+      }
+      return `${trimmed}\n\n- ${directive}`;
+    });
+    setAppliedIndex(index);
+    setTimeout(() => setAppliedIndex(null), 2000);
+  };
+
   // Get active translation for a segment
   const getTranslation = (segmentId: string, run: TranslationRun | undefined) => {
     if (!run) return null;
@@ -200,10 +216,21 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
   const selectedSegment = project.sourceSegments.find(s => s.id === selectedSegId);
   const selectedTranslation = selectedSegment ? getTranslation(selectedSegment.id, activeRun) : null;
   
-  let alternativesList: string[] = [];
+  let alternativesList: Array<{ text: string; promptDirective?: string }> = [];
   if (selectedTranslation?.alternatives) {
     try {
-      alternativesList = JSON.parse(selectedTranslation.alternatives);
+      const parsed = JSON.parse(selectedTranslation.alternatives);
+      if (Array.isArray(parsed)) {
+        alternativesList = parsed.map((item: any) => {
+          if (typeof item === 'string') {
+            return { text: item };
+          }
+          return {
+            text: item.text || '',
+            promptDirective: item.promptDirective || undefined
+          };
+        });
+      }
     } catch (e) {
       console.error("Failed to parse alternatives JSON:", e);
     }
@@ -780,10 +807,55 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
             {alternativesList.length > 0 && (
               <div>
                 <h4 className="details-section-title">Stylistic Alternatives</h4>
-                <div className="details-alternative-list">
+                <div className="details-alternative-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {alternativesList.map((alt, idx) => (
-                    <div key={idx} className="details-alternative-item">
-                      {alt}
+                    <div key={idx} className="details-alternative-item" style={{ 
+                      padding: '0.75rem', 
+                      backgroundColor: 'rgba(255,255,255,0.02)', 
+                      border: '1px solid var(--color-border)', 
+                      borderRadius: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem'
+                    }}>
+                      <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                        {alt.text}
+                      </div>
+                      {alt.promptDirective && (
+                        <div style={{ 
+                          fontSize: '0.8rem', 
+                          color: 'var(--color-text-secondary)',
+                          borderTop: '1px dashed var(--color-border)',
+                          paddingTop: '0.5rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: '1rem',
+                          marginTop: '0.25rem'
+                        }}>
+                          <div style={{ flex: 1, lineHeight: '1.4' }}>
+                            <span style={{ color: 'var(--color-accent-indigo)', fontWeight: 600 }}>Prompt Directive: </span>
+                            {alt.promptDirective}
+                          </div>
+                          <button
+                            onClick={() => handleApplyDirective(alt.promptDirective!, idx)}
+                            className="btn"
+                            style={{ 
+                              padding: '0.25rem 0.5rem', 
+                              fontSize: '0.75rem', 
+                              flexShrink: 0,
+                              backgroundColor: appliedIndex === idx ? 'var(--color-accent-emerald)' : 'var(--color-accent-indigo)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s ease'
+                            }}
+                          >
+                            {appliedIndex === idx ? 'Applied!' : 'Apply'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

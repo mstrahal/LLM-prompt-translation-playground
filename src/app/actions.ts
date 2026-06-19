@@ -42,8 +42,10 @@ You must respond ONLY with a valid JSON object matching the following structure:
   "translation": "The localized translation of the comment",
   "explanation": "Brief explanation of specific slang translation, grammar adaptation, or informal tone selection",
   "alternatives": [
-    "Alternative stylistic translation variation 1",
-    "Alternative stylistic translation variation 2"
+    {
+      "text": "Alternative stylistic translation variation",
+      "promptDirective": "A global instruction that could be added to the prompt to get this style (e.g. 'Adopt a sarcastic tone' or 'Write in all lowercase'). Do not refer to the specific source segment."
+    }
   ]
 }
 \`\`\``,

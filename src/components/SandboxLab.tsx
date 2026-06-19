@@ -7,7 +7,7 @@ import { getPromptsAction } from '@/app/actions';
 interface SandboxResult {
   translation: string;
   explanation: string;
-  alternatives: string[];
+  alternatives: Array<string | { text: string; promptDirective: string }>;
   inputTokens: number;
   outputTokens: number;
   cost: number;
@@ -27,6 +27,21 @@ export default function SandboxLab() {
   
   const [result, setResult] = useState<SandboxResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // State to track applied prompt directive index for animation
+  const [appliedIndex, setAppliedIndex] = useState<number | null>(null);
+
+  const handleApplyDirective = (directive: string, index: number) => {
+    setActiveLocalePrompt(prev => {
+      const trimmed = prev.trim();
+      if (trimmed.includes(directive)) {
+        return prev;
+      }
+      return `${trimmed}\n\n- ${directive}`;
+    });
+    setAppliedIndex(index);
+    setTimeout(() => setAppliedIndex(null), 2000);
+  };
 
   // Load active prompts when open
   useEffect(() => {
@@ -253,12 +268,63 @@ export default function SandboxLab() {
               {result.alternatives && result.alternatives.length > 0 && (
                 <div>
                   <h4 className="details-section-title">Alternative Stylistic Translations</h4>
-                  <div className="details-alternative-list">
-                    {result.alternatives.map((alt, idx) => (
-                      <div key={idx} className="details-alternative-item">
-                        {alt}
-                      </div>
-                    ))}
+                  <div className="details-alternative-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {result.alternatives.map((altItem, idx) => {
+                      const altText = typeof altItem === 'string' ? altItem : (altItem.text || '');
+                      const directive = typeof altItem === 'string' ? null : (altItem.promptDirective || null);
+
+                      return (
+                        <div key={idx} className="details-alternative-item" style={{ 
+                          padding: '0.75rem', 
+                          backgroundColor: 'rgba(255,255,255,0.02)', 
+                          border: '1px solid var(--color-border)', 
+                          borderRadius: '8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem'
+                        }}>
+                          <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                            {altText}
+                          </div>
+                          {directive && (
+                            <div style={{ 
+                              fontSize: '0.8rem', 
+                              color: 'var(--color-text-secondary)',
+                              borderTop: '1px dashed var(--color-border)',
+                              paddingTop: '0.5rem',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'flex-start',
+                              gap: '1rem',
+                              marginTop: '0.25rem'
+                            }}>
+                              <div style={{ flex: 1, lineHeight: '1.4' }}>
+                                <span style={{ color: 'var(--color-accent-indigo)', fontWeight: 600 }}>Prompt Directive: </span>
+                                {directive}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleApplyDirective(directive, idx)}
+                                className="btn"
+                                style={{ 
+                                  padding: '0.25rem 0.5rem', 
+                                  fontSize: '0.75rem', 
+                                  flexShrink: 0,
+                                  backgroundColor: appliedIndex === idx ? 'var(--color-accent-emerald)' : 'var(--color-accent-indigo)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  transition: 'background-color 0.2s ease'
+                                }}
+                              >
+                                {appliedIndex === idx ? 'Applied!' : 'Apply'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

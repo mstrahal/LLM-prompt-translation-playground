@@ -4,10 +4,15 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
 
+export interface AlternativeTranslation {
+  text: string;
+  promptDirective: string;
+}
+
 export interface TranslationResponse {
   translation: string;
   explanation: string;
-  alternatives: string[];
+  alternatives: AlternativeTranslation[];
   inputTokens: number;
   outputTokens: number;
   cost: number;
@@ -52,7 +57,14 @@ export async function queryGemini(params: GeminiQueryParams): Promise<Translatio
           explanation: { type: Type.STRING },
           alternatives: {
             type: Type.ARRAY,
-            items: { type: Type.STRING }
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                text: { type: Type.STRING, description: "The alternative translation variation" },
+                promptDirective: { type: Type.STRING, description: "A global prompt directive (in English) that the user could add to their system or locale instructions to achieve this translation style (e.g. 'Use more emojis', 'Keep sentences under 10 words'). Do not reference specific words of this segment." }
+              },
+              required: ['text', 'promptDirective']
+            }
           }
         },
         required: ['translation', 'explanation', 'alternatives']
@@ -65,7 +77,7 @@ export async function queryGemini(params: GeminiQueryParams): Promise<Translatio
     throw new Error('Gemini API returned an empty text response.');
   }
 
-  let parsed: { translation?: string; explanation?: string; alternatives?: string[] };
+  let parsed: { translation?: string; explanation?: string; alternatives?: AlternativeTranslation[] };
   try {
     parsed = JSON.parse(text);
   } catch (error) {
