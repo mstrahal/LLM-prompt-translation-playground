@@ -25,7 +25,7 @@ export async function getPromptsAction() {
       if (!systemPrompt) {
         systemPrompt = await db.systemPrompt.create({
           data: {
-            prompt: "You are a professional software localization specialist. Translate the provided string into the target language. Respond with a JSON object containing:\n1. \"translation\": the translated string\n2. \"explanation\": a brief explanation of choices or context (optional)\n3. \"alternatives\": an array of 1-3 alternative translations with slight stylistic variations.",
+            prompt: "You are a professional software localization specialist and translator. You are translating comments from an online forum (like Reddit) to a target language. The target audience is the 'Global Digital Native': predominantly 18-35 years old (Gen Z and millennials), deeply embedded in internet culture, opinionated, culture-savvy, and reactive. Maintain a casual, conversational, authentic, and often humorous tone. Use internet slang, digital references, and memes where appropriate. Ensure translations feel natural and native to online communities. Return a JSON object containing:\n1. \"translation\": the translated comment.\n2. \"explanation\": reasoning behind choices (e.g. slang translation, tone selection).\n3. \"alternatives\": an array of 1-2 stylistic variations.",
             isActive: true,
           },
         });
@@ -51,11 +51,11 @@ export async function getPromptsAction() {
         lp = await db.localePrompt.findFirst({ where: { locale } });
         if (!lp) {
           const defaults: Record<string, string> = {
-            'cs-CZ': "Přelož do češtiny. Používej přirozený, moderní tón vhodný pro softwarové rozhraní. Rozlišuj tykání/vykání podle kontextu.",
-            'es-ES': "Traduce al español de España. Usa un tono profesional y neutral. Asegúrate de que las palabras sean claras y legibles.",
-            'de-DE': "Übersetze ins Deutsche. Achte auf korrekte Grammatik und Rechtschreibung. Verwende standardmäßig die höfliche Anrede (Sie), falls nicht anders vorgegeben.",
-            'sk-SK': "Prelož do slovenčiny. Používaj modernú terminológiu pre aplikácie a dbaj na gramatickú správnosť.",
-            'fr-FR': "Traduire en français de France. Utiliser un ton professionnel. Respecter la ponctuation française (ex. espace insécable avant les deux-points).",
+            'cs-CZ': "Translate into casual, conversational Czech matching a Reddit comment. Use informal address (tykání). Incorporate common Czech internet slang, code-switching (Czenglish), and cultural references where appropriate to keep it authentic.",
+            'es-ES': "Translate into natural, conversational Castilian Spanish (es-ES) suitable for a Reddit forum. Adopt popular Spanish digital slang and local expressions. Maintain an informal, direct tone.",
+            'de-DE': "Translate into casual, conversational German (de-DE) suitable for a Reddit comment. Use informal address (Du/ihr). Incorporate typical German internet jargon, Anglicisms, and colloquialisms natural to German digital natives.",
+            'sk-SK': "Translate into casual, conversational Slovak (sk-SK) matching a Reddit comment. Use informal address (tykání). Adapt internet slang, colloquialisms, and expressions popular among Slovak Gen Z and Millennials.",
+            'fr-FR': "Translate into casual, conversational French (fr-FR) suitable for a Reddit comment. Use informal address (tutoiement). Incorporate common French internet slang (Verlan, digital jargon) and anglicisms natural to French digital natives.",
           };
           lp = await db.localePrompt.create({
             data: {
