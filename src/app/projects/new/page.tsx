@@ -133,9 +133,21 @@ export default function NewProjectPage() {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
-    if (segmentsList.length === 0) {
+    
+    let finalSegments = [...segmentsList];
+
+    // Auto-add the currently typed text if they clicked create without clicking 'Add Segment to List' first
+    if (finalSegments.length === 0 && inputText.trim()) {
+      finalSegments.push({
+        key: inputKey.trim() || `seg_${Math.random().toString(36).substring(2, 9)}`,
+        sourceText: inputText.trim(),
+        context: inputContext.trim() || undefined
+      });
+    }
+
+    if (finalSegments.length === 0) {
       setError("Please add at least one English string segment to translate.");
       return;
     }
@@ -152,7 +164,7 @@ export default function NewProjectPage() {
         name,
         targetLanguage,
         geminiModel,
-        segmentsList
+        finalSegments
       );
 
       // Navigate to project workspace
@@ -293,7 +305,7 @@ export default function NewProjectPage() {
               Add Segment
             </h2>
 
-            <form onSubmit={handleAddSegment} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Source Text (English)*</label>
                 <textarea 
@@ -332,7 +344,8 @@ export default function NewProjectPage() {
               </div>
 
               <button 
-                type="submit" 
+                type="button"
+                onClick={handleAddSegment} 
                 className="btn btn-primary"
                 disabled={submitting}
                 style={{ width: '100%', marginTop: '0.5rem', display: 'flex', justifyContent: 'center', backgroundColor: 'var(--color-bg-body)', border: '1px solid var(--color-border)' }}
@@ -340,7 +353,7 @@ export default function NewProjectPage() {
                 <Plus size={16} />
                 <span>Add Segment to List</span>
               </button>
-            </form>
+            </div>
           </div>
 
           {/* 3. CSV Helper Trigger */}
@@ -397,7 +410,7 @@ export default function NewProjectPage() {
           <button
             onClick={handleSubmit}
             className="btn btn-primary"
-            disabled={submitting || segmentsList.length === 0}
+            disabled={submitting || (segmentsList.length === 0 && !inputText.trim())}
             style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'center', fontSize: '1rem' }}
           >
             {submitting ? (
