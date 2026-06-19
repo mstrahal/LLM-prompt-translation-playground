@@ -38,7 +38,27 @@ export default async function ProjectPage({ params }: PageProps) {
     },
   });
 
+  // Serialize dates to prevent RSC serialization errors
+  const serializedProject = {
+    ...project,
+    createdAt: project.createdAt.toISOString(),
+    updatedAt: project.updatedAt.toISOString(),
+    sourceSegments: project.sourceSegments.map(seg => ({
+      ...seg,
+      createdAt: seg.createdAt.toISOString(),
+    })),
+  };
+
+  const serializedRuns = runs.map(run => ({
+    ...run,
+    createdAt: run.createdAt.toISOString(),
+    translations: run.translations.map(t => ({
+      ...t,
+      createdAt: t.createdAt.toISOString(),
+    })),
+  }));
+
   return (
-    <WorkspaceClient project={project} initialRuns={runs} />
+    <WorkspaceClient project={serializedProject} initialRuns={serializedRuns} />
   );
 }

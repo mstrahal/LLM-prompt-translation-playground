@@ -495,7 +495,7 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
                         {translationActive ? (
                           translationActive.targetText
                         ) : (
-                          <span style={{ color: 'var(--color-accent-rose)' }}>Error / None</span>
+                          <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Pending (Click Regenerate)</span>
                         )}
                       </td>
 
@@ -690,7 +690,7 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
                   ) : (
                     <>
                       <CheckSquare size={14} />
-                      <span>Save & Translate</span>
+                      <span>Save Segment</span>
                     </>
                   )}
                 </button>

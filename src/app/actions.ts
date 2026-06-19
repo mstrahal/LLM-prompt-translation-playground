@@ -434,22 +434,10 @@ export async function addSourceSegmentAction(
       throw new Error("Project not found.");
     }
 
-    // Find latest run to extract parameters
-    const latestRun = await db.translationRun.findFirst({
-      where: { projectId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    // If no run exists, fetch active prompt settings or standard defaults
-    const prompts = await getPromptsAction();
-    const systemPromptUsed = latestRun?.systemPromptUsed || prompts.systemPrompt;
-    const localePromptUsed = latestRun?.localePromptUsed || prompts.localePrompts[project.targetLanguage] || "Translate carefully.";
-    const modelUsed = latestRun?.modelUsed || project.geminiModel;
-
     // Generate custom key if none provided
     const finalKey = key?.trim() || `seg_${Math.random().toString(36).substring(2, 9)}`;
 
-    // 1. Create Source Segment
+    // 1. Create Source Segment in DB
     const segment = await db.sourceSegment.create({
       data: {
         projectId,
@@ -459,66 +447,9 @@ export async function addSourceSegmentAction(
       },
     });
 
-    // 2. Query Gemini for translation
-    const result = await translateText(
-      segment.sourceText,
-      systemPromptUsed,
-      localePromptUsed,
-      project.targetLanguage,
-      modelUsed,
-      segment.context
-    );
-
-    // 3. Save translation if a run exists
-    if (latestRun) {
-      const tokens = result.inputTokens + result.outputTokens;
-
-      await db.translation.create({
-        data: {
-          sourceSegmentId: segment.id,
-          translationRunId: latestRun.id,
-          targetText: result.translation,
-          explanation: result.explanation,
-          alternatives: JSON.stringify(result.alternatives),
-          tokensUsed: tokens,
-          cost: result.cost,
-        },
-      });
-
-      // Update latest run totals
-      await db.translationRun.update({
-        where: { id: latestRun.id },
-        data: {
-          totalTokens: latestRun.totalTokens + tokens,
-          totalCost: latestRun.totalCost + result.cost,
-        },
-      });
-    } else {
-      // Create a new run if there wasn't one (fallback)
-      const tokens = result.inputTokens + result.outputTokens;
-      const newRun = await db.translationRun.create({
-        data: {
-          projectId,
-          modelUsed,
-          systemPromptUsed,
-          localePromptUsed,
-          totalTokens: tokens,
-          totalCost: result.cost,
-        },
-      });
-
-      await db.translation.create({
-        data: {
-          sourceSegmentId: segment.id,
-          translationRunId: newRun.id,
-          targetText: result.translation,
-          explanation: result.explanation,
-          alternatives: JSON.stringify(result.alternatives),
-          tokensUsed: tokens,
-          cost: result.cost,
-        },
-      });
-    }
+    // Note: We do NOT translate it automatically anymore.
+    // The translation will remain empty (null) for the active run
+    // until the user manually triggers a full or selective regeneration.
 
     revalidatePath(`/projects/${projectId}`);
     return { success: true, segmentId: segment.id };
