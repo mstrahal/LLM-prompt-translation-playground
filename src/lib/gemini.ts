@@ -86,10 +86,20 @@ export async function queryGemini(params: GeminiQueryParams): Promise<Translatio
     outputTokens = Math.ceil(totalOutputChars / 4);
   }
 
-  // Cost calculation based on gemini-2.5-flash pricing:
-  // $0.075 / 1M input tokens, $0.30 / 1M output tokens
-  const inputCost = (inputTokens / 1_000_000) * 0.075;
-  const outputCost = (outputTokens / 1_000_000) * 0.30;
+  // Cost calculation based on model type pricing per 1M tokens
+  let inputRate = 0.075; // default/flash input rate
+  let outputRate = 0.30; // default/flash output rate
+
+  if (model.includes('pro') || model.includes('Pro')) {
+    inputRate = 1.25;
+    outputRate = 5.00;
+  } else if (model.includes('supernova') || model.includes('Supernova')) {
+    inputRate = 5.00;
+    outputRate = 20.00;
+  }
+
+  const inputCost = (inputTokens / 1_000_000) * inputRate;
+  const outputCost = (outputTokens / 1_000_000) * outputRate;
   const totalCost = inputCost + outputCost;
 
   return {

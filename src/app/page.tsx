@@ -116,9 +116,9 @@ export default async function DashboardPage() {
       ) : (
         /* Projects Cards Grid */
         <div className="projects-grid">
-          {projects.map((project) => {
-            const totalProjectTokens = project.translationRuns.reduce((sum, run) => sum + run.totalTokens, 0);
-            const totalProjectCost = project.translationRuns.reduce((sum, run) => sum + run.totalCost, 0);
+          {projects.map((project: any) => {
+            const totalProjectTokens = project.translationRuns.reduce((sum: number, run: any) => sum + run.totalTokens, 0);
+            const totalProjectCost = project.translationRuns.reduce((sum: number, run: any) => sum + run.totalCost, 0);
             const formattedDate = new Date(project.createdAt).toLocaleDateString(undefined, {
               year: 'numeric',
               month: 'short',

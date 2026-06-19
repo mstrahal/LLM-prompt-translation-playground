@@ -8,17 +8,17 @@ import {
   Sparkles, 
   Languages, 
   Cpu, 
-  Coins, 
-  Clock, 
   X, 
   Play, 
   Loader2, 
   FileText,
-  Columns,
-  GitCompare
+  GitCompare,
+  Plus,
+  CheckSquare,
+  Square
 } from 'lucide-react';
-import { regenerateTranslationRunAction } from '@/app/actions';
-import { diffWords, DiffToken } from '@/lib/diff';
+import { regenerateTranslationRunAction, addSourceSegmentAction } from '@/app/actions';
+import { diffWords } from '@/lib/diff';
 
 interface SourceSegment {
   id: string;
@@ -75,6 +75,16 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
   const [localePrompt, setLocalePrompt] = useState('');
   const [modelUsed, setModelUsed] = useState(project.geminiModel);
 
+  // Checkbox selection states
+  const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([]);
+
+  // Add segment modal states
+  const [showAddSegmentModal, setShowAddSegmentModal] = useState(false);
+  const [newSegText, setNewSegText] = useState('');
+  const [newSegKey, setNewSegKey] = useState('');
+  const [newSegContext, setNewSegContext] = useState('');
+  const [addingSegment, setAddingSegment] = useState(false);
+
   // Regeneration state
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,28 +105,76 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
     }
   }, [activeRunId, runs]);
 
-  // Handle regeneration action
-  const handleRegenerate = async (e: React.FormEvent) => {
+  // Handle regeneration action (for selected or all segments)
+  const handleRegenerate = async (e: React.FormEvent, runSelective = false) => {
     e.preventDefault();
     setRegenerating(true);
     setError(null);
 
     try {
+      const selectedIds = runSelective ? selectedSegmentIds : undefined;
       const res = await regenerateTranslationRunAction(
         project.id,
         systemPrompt,
         localePrompt,
-        modelUsed
+        modelUsed,
+        selectedIds
       );
 
-      // Fetch the updated runs list (or we can query it, let's just refresh page or handle smoothly)
-      // To get the latest runs list client-side, we reload page components or do a window reload since Server Actions revalidate path
-      // Reload is simplest, but to keep state smooth, let's refresh or fetch. A page reload is robust since it fetches fresh Server Component data!
+      // Force-refresh to fetch updated data from the server components
       window.location.reload();
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to regenerate translations.');
       setRegenerating(false);
+    }
+  };
+
+  // Handle Add Segment Submit
+  const handleAddSegmentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSegText.trim()) return;
+
+    setAddingSegment(true);
+    setError(null);
+
+    try {
+      await addSourceSegmentAction(
+        project.id,
+        newSegText,
+        newSegKey || undefined,
+        newSegContext || undefined
+      );
+
+      // Reset states & reload workspace
+      setNewSegText('');
+      setNewSegKey('');
+      setNewSegContext('');
+      setShowAddSegmentModal(false);
+      window.location.reload();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to add segment.");
+      setAddingSegment(false);
+    }
+  };
+
+  // Toggle individual segment checkbox
+  const handleCheckboxToggle = (segId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation(); // Prevent opening the detail sheet drawer
+    setSelectedSegmentIds(prev => 
+      prev.includes(segId) ? prev.filter(id => id !== segId) : [...prev, segId]
+    );
+  };
+
+  // Toggle all checkboxes
+  const handleSelectAllToggle = () => {
+    if (selectedSegmentIds.length === project.sourceSegments.length) {
+      // Uncheck all
+      setSelectedSegmentIds([]);
+    } else {
+      // Check all
+      setSelectedSegmentIds(project.sourceSegments.map(s => s.id));
     }
   };
 
@@ -216,16 +274,28 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
 
       {/* Project Title Banner */}
       <div className="section-header" style={{ marginBottom: '2rem' }}>
-        <div>
-          <h1 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {project.name}
-            <span className="badge badge-indigo" style={{ fontSize: '0.9rem', verticalAlign: 'middle' }}>
-              {project.targetLanguage}
-            </span>
-          </h1>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: '1rem', marginTop: '0.25rem' }}>
-            Translation workspace. Review parsed segments, inspect explanations, or compare different prompt configurations.
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div>
+            <h1 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', margin: 0 }}>
+              {project.name}
+              <span className="badge badge-indigo" style={{ fontSize: '0.9rem', verticalAlign: 'middle' }}>
+                {project.targetLanguage}
+              </span>
+            </h1>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '1rem', marginTop: '0.25rem', margin: 0 }}>
+              Translation workspace. Add source strings, tweak prompts, and review translations.
+            </p>
+          </div>
+
+          {/* Add Segment on the fly button */}
+          <button 
+            onClick={() => setShowAddSegmentModal(true)}
+            className="btn btn-primary"
+            style={{ display: 'flex', gap: '0.4rem', fontSize: '0.9rem', padding: '0.5rem 1rem' }}
+          >
+            <Plus size={16} />
+            <span>Add Segment</span>
+          </button>
         </div>
       </div>
 
@@ -240,7 +310,7 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
             </div>
           </div>
           <div className="stat-card" style={{ padding: '1rem 1.25rem' }}>
-            <div className="stat-label" style={{ fontSize: '0.75rem' }}>Total Tokens</div>
+            <div className="stat-label" style={{ fontSize: '0.75rem' }}>Total Run Tokens</div>
             <div className="stat-value" style={{ fontSize: '1.25rem' }}>
               {activeRun.totalTokens.toLocaleString()}
             </div>
@@ -273,7 +343,44 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
         </div>
       )}
 
-      {/* Main Workspace Workspace */}
+      {/* Selective Action Toolbar if checkboxes selected */}
+      {selectedSegmentIds.length > 0 && (
+        <div style={{
+          backgroundColor: 'rgba(99, 102, 241, 0.08)',
+          border: '1px dashed var(--color-accent-indigo)',
+          borderRadius: '8px',
+          padding: '0.75rem 1.25rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+            <CheckSquare size={16} style={{ color: 'var(--color-accent-indigo)' }} />
+            <span><strong>{selectedSegmentIds.length}</strong> segments selected for selective regeneration.</span>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button 
+              onClick={() => setSelectedSegmentIds([])}
+              className="btn"
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+            >
+              Clear Selection
+            </button>
+            <button 
+              onClick={(e) => handleRegenerate(e, true)}
+              className="btn btn-primary"
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem', display: 'flex', gap: '0.25rem' }}
+            >
+              <Play size={12} />
+              <span>Regenerate Selected</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Workspace Container */}
       <div className="workspace-container">
         
         {/* Left Side: Translation Grid / Table */}
@@ -294,9 +401,9 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
               padding: '4rem 2rem'
             }}>
               <Loader2 className="spinner" size={48} style={{ color: 'var(--color-accent-indigo)', animation: 'spin 1.5s linear infinite', marginBottom: '1rem' }} />
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Regenerating Workspace Translations</h3>
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Running Translation API</h3>
               <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', maxWidth: '380px', textAlign: 'center' }}>
-                Executing prompt updates using Gemini model. Cost estimates will recalculate.
+                Invoking Gemini model. Only selected segments will incur API token calls.
               </p>
             </div>
           )}
@@ -305,8 +412,16 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
             <table className="data-table">
               <thead>
                 <tr>
-                  <th style={{ width: '20%' }}>Key / ID</th>
-                  <th style={{ width: '35%' }}>Source Text (English)</th>
+                  <th style={{ width: '5%', textAlign: 'center' }}>
+                    <input 
+                      type="checkbox"
+                      checked={selectedSegmentIds.length === project.sourceSegments.length && project.sourceSegments.length > 0}
+                      onChange={handleSelectAllToggle}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
+                  <th style={{ width: '18%' }}>Key / ID</th>
+                  <th style={{ width: '32%' }}>Source Text (English)</th>
                   <th style={{ width: compareRun ? '22%' : '45%' }}>
                     {compareRun ? `Active Run (Run #${runs.length - runs.indexOf(activeRun!)})` : 'Translation'}
                   </th>
@@ -342,8 +457,24 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
                     );
                   }
 
+                  const isChecked = selectedSegmentIds.includes(segment.id);
+
                   return (
-                    <tr key={segment.id} onClick={() => setSelectedSegId(segment.id)}>
+                    <tr 
+                      key={segment.id} 
+                      onClick={() => setSelectedSegId(segment.id)}
+                      style={{ backgroundColor: isChecked ? 'rgba(99, 102, 241, 0.02)' : undefined }}
+                    >
+                      {/* Checkbox */}
+                      <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => handleCheckboxToggle(segment.id, e)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+
                       {/* Key ID */}
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-text-primary)' }}>
                         {segment.key}
@@ -386,7 +517,7 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
 
         {/* Right Side: Inline Prompt Tweaking Sidebar */}
         <div className="workspace-sidebar">
-          <form onSubmit={handleRegenerate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <form onSubmit={(e) => handleRegenerate(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <h3 style={{ fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
               <Sparkles size={16} style={{ color: 'var(--color-accent-indigo)' }} />
               Prompt Playground
@@ -405,6 +536,9 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
                 style={{ fontSize: '0.85rem', padding: '0.5rem' }}
                 disabled={regenerating}
               >
+                <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
+                <option value="gemini-3.0-supernova">Gemini 3.0 Supernova</option>
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
               </select>
@@ -451,7 +585,7 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
               ) : (
                 <>
                   <Play size={14} />
-                  <span>Regenerate Run</span>
+                  <span>Regenerate All</span>
                 </>
               )}
             </button>
@@ -459,6 +593,112 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
         </div>
 
       </div>
+
+      {/* Add Segment Modal */}
+      {showAddSegmentModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 100,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '12px',
+            width: '450px',
+            padding: '1.5rem',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+            animation: 'fadeIn 0.2s ease'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem' }}>
+              <h3 style={{ fontSize: '1.2rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Plus size={18} style={{ color: 'var(--color-accent-indigo)' }} />
+                Add Source Segment
+              </h3>
+              <button 
+                onClick={() => setShowAddSegmentModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSegmentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Source Text (English)*</label>
+                <textarea 
+                  className="textarea-field" 
+                  value={newSegText}
+                  onChange={(e) => setNewSegText(e.target.value)}
+                  placeholder="Enter string to translate..."
+                  style={{ minHeight: '80px', fontSize: '0.875rem' }}
+                  required
+                  disabled={addingSegment}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Key ID (Optional)</label>
+                <input 
+                  type="text"
+                  className="input-field"
+                  value={newSegKey}
+                  onChange={(e) => setNewSegKey(e.target.value)}
+                  placeholder="e.g. settings_title"
+                  disabled={addingSegment}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Context Description (Optional)</label>
+                <input 
+                  type="text"
+                  className="input-field"
+                  value={newSegContext}
+                  onChange={(e) => setNewSegContext(e.target.value)}
+                  placeholder="e.g. Header label of settings screen"
+                  disabled={addingSegment}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowAddSegmentModal(false)}
+                  className="btn"
+                  style={{ padding: '0.5rem 1rem' }}
+                  disabled={addingSegment}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1rem', display: 'flex', gap: '0.25rem' }}
+                  disabled={addingSegment || !newSegText.trim()}
+                >
+                  {addingSegment ? (
+                    <>
+                      <Loader2 size={14} className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Adding...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare size={14} />
+                      <span>Save & Translate</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Segment Translation Details Slide-in Sheet (Drawer) */}
       <div 
@@ -583,6 +823,10 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
       `}</style>
     </div>

@@ -45,7 +45,7 @@ export async function getPromptsAction() {
     const localePromptsMap: Record<string, string> = {};
 
     for (const locale of locales) {
-      let lp: any = localePromptsList.find(p => p.locale === locale);
+      let lp: any = localePromptsList.find((p: any) => p.locale === locale);
       if (!lp) {
         // Find inactive or create default
         lp = await db.localePrompt.findFirst({ where: { locale } });
@@ -180,13 +180,14 @@ export async function createProjectAction(
     }
 
     // 3. Run translations in parallel
-    const translationPromises = createdSegments.map(async (seg) => {
+    const translationPromises = createdSegments.map(async (seg: any) => {
       const result = await translateText(
         seg.sourceText,
         systemPromptUsed,
         localePromptUsed,
         targetLanguage,
-        geminiModel
+        geminiModel,
+        seg.context
       );
       return {
         segmentId: seg.id,
@@ -241,7 +242,8 @@ export async function regenerateTranslationRunAction(
   projectId: string,
   overrideSystemPrompt?: string,
   overrideLocalePrompt?: string,
-  overrideModel?: string
+  overrideModel?: string,
+  selectedSegmentIds?: string[]
 ) {
   try {
     const project = await db.project.findUnique({
@@ -259,25 +261,53 @@ export async function regenerateTranslationRunAction(
     const localePromptUsed = overrideLocalePrompt || prompts.localePrompts[project.targetLanguage] || "Translate carefully.";
     const modelUsed = overrideModel || project.geminiModel;
 
-    // Run translations in parallel for all source segments
-    const translationPromises = project.sourceSegments.map(async (seg) => {
-      const result = await translateText(
-        seg.sourceText,
-        systemPromptUsed,
-        localePromptUsed,
-        project.targetLanguage,
-        modelUsed
-      );
-      return {
-        segmentId: seg.id,
-        ...result,
-      };
+    // Fetch the last run if we need to copy unselected segments
+    const lastRun = await db.translationRun.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+      include: { translations: true },
+    });
+
+    const isSelective = Array.isArray(selectedSegmentIds) && selectedSegmentIds.length > 0;
+
+    // Run translations in parallel for selected segments, copy others from previous run
+    const translationPromises = project.sourceSegments.map(async (seg: any) => {
+      const shouldTranslate = !isSelective || selectedSegmentIds.includes(seg.id);
+
+      if (shouldTranslate) {
+        const result = await translateText(
+          seg.sourceText,
+          systemPromptUsed,
+          localePromptUsed,
+          project.targetLanguage,
+          modelUsed,
+          seg.context
+        );
+        return {
+          segmentId: seg.id,
+          targetText: result.translation,
+          explanation: result.explanation,
+          alternatives: JSON.stringify(result.alternatives),
+          tokensUsed: result.inputTokens + result.outputTokens,
+          cost: result.cost,
+        };
+      } else {
+        const prevTranslation = lastRun?.translations.find((t: any) => t.sourceSegmentId === seg.id);
+        return {
+          segmentId: seg.id,
+          targetText: prevTranslation?.targetText || '',
+          explanation: prevTranslation?.explanation || '',
+          alternatives: prevTranslation?.alternatives || '[]',
+          tokensUsed: 0,
+          cost: 0.0,
+        };
+      }
     });
 
     const translationResults = await Promise.all(translationPromises);
 
     // Calculate total tokens and cost
-    const totalTokens = translationResults.reduce((acc, curr) => acc + curr.inputTokens + curr.outputTokens, 0);
+    const totalTokens = translationResults.reduce((acc, curr) => acc + curr.tokensUsed, 0);
     const totalCost = translationResults.reduce((acc, curr) => acc + curr.cost, 0);
 
     // Create Translation Run
@@ -298,10 +328,10 @@ export async function regenerateTranslationRunAction(
         data: {
           sourceSegmentId: res.segmentId,
           translationRunId: translationRun.id,
-          targetText: res.translation,
+          targetText: res.targetText,
           explanation: res.explanation,
-          alternatives: JSON.stringify(res.alternatives),
-          tokensUsed: res.inputTokens + res.outputTokens,
+          alternatives: res.alternatives,
+          tokensUsed: res.tokensUsed,
           cost: res.cost,
         },
       });
@@ -321,6 +351,120 @@ export async function regenerateTranslationRunAction(
   } catch (error: any) {
     console.error("Error in regenerateTranslationRunAction:", error);
     throw new Error(error.message || "Failed to regenerate translation run.");
+  }
+}
+
+// 4b. Add source segment on the fly
+export async function addSourceSegmentAction(
+  projectId: string,
+  sourceText: string,
+  key?: string,
+  context?: string
+) {
+  try {
+    if (!projectId || !sourceText) {
+      throw new Error("Project ID and English string are required.");
+    }
+
+    const project = await db.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new Error("Project not found.");
+    }
+
+    // Find latest run to extract parameters
+    const latestRun = await db.translationRun.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // If no run exists, fetch active prompt settings or standard defaults
+    const prompts = await getPromptsAction();
+    const systemPromptUsed = latestRun?.systemPromptUsed || prompts.systemPrompt;
+    const localePromptUsed = latestRun?.localePromptUsed || prompts.localePrompts[project.targetLanguage] || "Translate carefully.";
+    const modelUsed = latestRun?.modelUsed || project.geminiModel;
+
+    // Generate custom key if none provided
+    const finalKey = key?.trim() || `seg_${Math.random().toString(36).substring(2, 9)}`;
+
+    // 1. Create Source Segment
+    const segment = await db.sourceSegment.create({
+      data: {
+        projectId,
+        key: finalKey,
+        sourceText: sourceText.trim(),
+        context: context?.trim() || '',
+      },
+    });
+
+    // 2. Query Gemini for translation
+    const result = await translateText(
+      segment.sourceText,
+      systemPromptUsed,
+      localePromptUsed,
+      project.targetLanguage,
+      modelUsed,
+      segment.context
+    );
+
+    // 3. Save translation if a run exists
+    if (latestRun) {
+      const tokens = result.inputTokens + result.outputTokens;
+
+      await db.translation.create({
+        data: {
+          sourceSegmentId: segment.id,
+          translationRunId: latestRun.id,
+          targetText: result.translation,
+          explanation: result.explanation,
+          alternatives: JSON.stringify(result.alternatives),
+          tokensUsed: tokens,
+          cost: result.cost,
+        },
+      });
+
+      // Update latest run totals
+      await db.translationRun.update({
+        where: { id: latestRun.id },
+        data: {
+          totalTokens: latestRun.totalTokens + tokens,
+          totalCost: latestRun.totalCost + result.cost,
+        },
+      });
+    } else {
+      // Create a new run if there wasn't one (fallback)
+      const tokens = result.inputTokens + result.outputTokens;
+      const newRun = await db.translationRun.create({
+        data: {
+          projectId,
+          modelUsed,
+          systemPromptUsed,
+          localePromptUsed,
+          totalTokens: tokens,
+          totalCost: result.cost,
+        },
+      });
+
+      await db.translation.create({
+        data: {
+          sourceSegmentId: segment.id,
+          translationRunId: newRun.id,
+          targetText: result.translation,
+          explanation: result.explanation,
+          alternatives: JSON.stringify(result.alternatives),
+          tokensUsed: tokens,
+          cost: result.cost,
+        },
+      });
+    }
+
+    revalidatePath(`/projects/${projectId}`);
+    return { success: true, segmentId: segment.id };
+  } catch (error: any) {
+    console.error("Error in addSourceSegmentAction:", error);
+    throw new Error(error.message || "Failed to add source segment.");
   }
 }
 
