@@ -19,7 +19,11 @@ export default function DeleteProjectButton({ projectId, projectName }: DeletePr
     if (window.confirm(`Are you sure you want to delete the project "${projectName}"? This will permanently delete all associated translation runs and segments.`)) {
       setIsDeleting(true);
       try {
-        await deleteProjectAction(projectId);
+        const res = await deleteProjectAction(projectId);
+        if (res && !res.success) {
+          alert(res.error || "Failed to delete project.");
+          setIsDeleting(false);
+        }
       } catch (error: any) {
         console.error("Failed to delete project:", error);
         alert(error.message || "Failed to delete project.");

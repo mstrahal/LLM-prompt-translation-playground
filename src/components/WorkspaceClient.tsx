@@ -121,6 +121,12 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
         selectedIds
       );
 
+      if (res && !res.success) {
+        setError(res.error || 'Failed to regenerate translations.');
+        setRegenerating(false);
+        return;
+      }
+
       // Force-refresh to fetch updated data from the server components
       window.location.reload();
     } catch (err: any) {
@@ -139,12 +145,18 @@ export default function WorkspaceClient({ project, initialRuns }: WorkspaceClien
     setError(null);
 
     try {
-      await addSourceSegmentAction(
+      const res = await addSourceSegmentAction(
         project.id,
         newSegText,
         newSegKey || undefined,
         newSegContext || undefined
       );
+
+      if (res && !res.success) {
+        setError(res.error || "Failed to add segment.");
+        setAddingSegment(false);
+        return;
+      }
 
       // Reset states & reload workspace
       setNewSegText('');

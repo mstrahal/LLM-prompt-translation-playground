@@ -167,6 +167,12 @@ export default function NewProjectPage() {
         finalSegments
       );
 
+      if (res && !res.success) {
+        setError(res.error || "Failed to create project. Verify Gemini API key and prompt settings.");
+        setSubmitting(false);
+        return;
+      }
+
       // Navigate to project workspace
       router.push(`/projects/${res.projectId}`);
     } catch (err: any) {

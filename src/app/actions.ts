@@ -190,9 +190,9 @@ export async function savePromptsAction(systemPromptText: string, localePromptsM
 
     revalidatePath('/settings');
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in savePromptsAction:", error);
-    throw new Error("Failed to save prompts.");
+    return { success: false, error: error.message || "Failed to save prompts." };
   }
 }
 
@@ -289,11 +289,11 @@ export async function createProjectAction(
     }
 
     revalidatePath('/');
-    return { projectId: project.id };
+    return { success: true, projectId: project.id };
 
   } catch (error: any) {
     console.error("Error in createProjectAction:", error);
-    throw new Error(error.message || "Failed to create project.");
+    return { success: false, error: error.message || "Failed to create project." };
   }
 }
 
@@ -406,11 +406,11 @@ export async function regenerateTranslationRunAction(
     }
 
     revalidatePath(`/projects/${projectId}`);
-    return { runId: translationRun.id };
+    return { success: true, runId: translationRun.id };
 
   } catch (error: any) {
     console.error("Error in regenerateTranslationRunAction:", error);
-    throw new Error(error.message || "Failed to regenerate translation run.");
+    return { success: false, error: error.message || "Failed to regenerate translation run." };
   }
 }
 
@@ -455,7 +455,7 @@ export async function addSourceSegmentAction(
     return { success: true, segmentId: segment.id };
   } catch (error: any) {
     console.error("Error in addSourceSegmentAction:", error);
-    throw new Error(error.message || "Failed to add source segment.");
+    return { success: false, error: error.message || "Failed to add source segment." };
   }
 }
 
@@ -469,7 +469,7 @@ export async function deleteProjectAction(projectId: string) {
     return { success: true };
   } catch (error: any) {
     console.error("Error in deleteProjectAction:", error);
-    throw new Error(error.message || "Failed to delete project.");
+    return { success: false, error: error.message || "Failed to delete project." };
   }
 }
 
