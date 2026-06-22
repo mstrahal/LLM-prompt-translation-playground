@@ -20,30 +20,48 @@ import {
   ShieldAlert,
   Check,
   Zap,
-  Info
+  Info,
+  Layers,
+  Fingerprint,
+  UserCheck,
+  Code2,
+  Maximize2
 } from 'lucide-react';
 import Link from 'next/link';
 
 // Constant strings for challenges
 const CH1_SOURCE = "Hello! We noticed you haven't completed your profile setup. Please log in now to finish setting up your account.";
 const CH3_SOURCE = "Please click reset to clear your cart and log out of the console.";
+const CH5_SOURCE = "Click to save your workspace progress.";
+const CH5_FUZZY_SRC = "Click to save your profile progress.";
+const CH5_FUZZY_TGT = "Kliknutím uložte svůj postup v profilu.";
+const CH6_SOURCE = "Book";
+const CH7_SOURCE = "I have successfully signed up.";
+const CH8_SOURCE = "Welcome back, <strong>{userName}</strong>! You have <a>%d new messages</a>.";
+const CH9_SOURCE = "Create new workspace";
 
 export default function AcademyPage() {
   const [activeLesson, setActiveLesson] = useState(1);
   const [studentName, setStudentName] = useState("");
   const [certificateGenerated, setCertificateGenerated] = useState(false);
   
-  // Progress state
+  // Progress state for all 10 challenges
   const [progress, setProgress] = useState({
     challenge1: false,
     challenge2: false,
     challenge3: false,
     challenge4: false,
+    challenge5: false,
+    challenge6: false,
+    challenge7: false,
+    challenge8: false,
+    challenge9: false,
+    challenge10: false,
   });
 
   // Load progress from localStorage if available
   useEffect(() => {
-    const saved = localStorage.getItem('ai_loc_academy_progress');
+    const saved = localStorage.getItem('ai_loc_academy_progress_v2');
     if (saved) {
       try {
         setProgress(JSON.parse(saved));
@@ -55,12 +73,23 @@ export default function AcademyPage() {
 
   const saveProgress = (newProgress: typeof progress) => {
     setProgress(newProgress);
-    localStorage.setItem('ai_loc_academy_progress', JSON.stringify(newProgress));
+    localStorage.setItem('ai_loc_academy_progress_v2', JSON.stringify(newProgress));
   };
 
   const resetAllProgress = () => {
     if (window.confirm("Are you sure you want to reset your curriculum progress?")) {
-      const reset = { challenge1: false, challenge2: false, challenge3: false, challenge4: false };
+      const reset = {
+        challenge1: false,
+        challenge2: false,
+        challenge3: false,
+        challenge4: false,
+        challenge5: false,
+        challenge6: false,
+        challenge7: false,
+        challenge8: false,
+        challenge9: false,
+        challenge10: false,
+      };
       saveProgress(reset);
       setCertificateGenerated(false);
     }
@@ -99,9 +128,6 @@ export default function AcademyPage() {
       }
 
       const translation = (data.translation || '').toLowerCase();
-
-      // Programmatic validator for Vykání (formal) vs Tykání (informal)
-      // Check for formal indicators
       const hasFormalVerbs = translation.includes('přihlaste') || translation.includes('prihlaste') || 
                              translation.includes('dokončete') || translation.includes('dokoncete') ||
                              translation.includes('prohlédněte') || translation.includes('prohlednete') ||
@@ -111,7 +137,6 @@ export default function AcademyPage() {
                                translation.includes('vašich') || translation.includes('vasich') ||
                                translation.includes('vám') || translation.includes('vam');
 
-      // Check for informal indicators
       const hasInformalVerbs = translation.includes('přihlas') || translation.includes('prihlas') || 
                                translation.includes('dokonči') || translation.includes('dokonci') ||
                                translation.includes('zkontroluj') || translation.includes('uprav');
@@ -130,7 +155,7 @@ export default function AcademyPage() {
       } else {
         let msg = "Validation failed. ";
         if (hasInformalVerbs || hasInformalPronouns) {
-          msg += "We detected informal singular address (tykání) like 'přihlas', 'dokonči', or 'tvoje'. In a corporate or customer dashboard, this violates professional guidelines. ";
+          msg += "We detected informal singular address (tykání) like 'přihlas', 'dokonči', or 'tvoje'. In a corporate dashboard, this violates professional guidelines. ";
         } else {
           msg += "The translation did not contain clear formal addressing markers (vykání). ";
         }
@@ -150,7 +175,6 @@ export default function AcademyPage() {
   const [ch2PromptSize, setCh2PromptSize] = useState<number>(1200);
   const [ch2Feedback, setCh2Feedback] = useState<{ status: 'success' | 'error' | null; message: string }>({ status: null, message: "" });
 
-  // Calculation parameters
   const totalSegments = 4000;
   const localesCount = 5;
   const avgSourceTokens = 17;
@@ -161,7 +185,6 @@ export default function AcademyPage() {
   const totalInputTokens = totalRequests * inputTokensPerRequest;
   const totalOutputTokens = totalSegments * avgTargetTokens * localesCount;
 
-  // Pricing: Flash (Input $0.075 / 1M, Output $0.30 / 1M) vs Pro (Input $1.25 / 1M, Output $5.00 / 1M)
   const inputPrice = ch2Model === 'pro' ? 1.25 / 1_000_000 : 0.075 / 1_000_000;
   const outputPrice = ch2Model === 'pro' ? 5.00 / 1_000_000 : 0.30 / 1_000_000;
 
@@ -179,7 +202,7 @@ export default function AcademyPage() {
     } else {
       setCh2Feedback({
         status: 'error',
-        message: `Budget Exceeded. Current cost is $${totalCost.toFixed(3)}, which is above our $${targetBudget.toFixed(2)} threshold. Try to increase the batch size to send more segments per request, or trim the system prompt length, or choose a more economical model tier.`
+        message: `Budget Exceeded. Current cost is $${totalCost.toFixed(3)}, which is above our $${targetBudget.toFixed(2)} threshold. Try to increase the batch size, trim the system prompt length, or choose a more economical model tier.`
       });
     }
   };
@@ -217,17 +240,10 @@ export default function AcademyPage() {
       }
 
       const translation = (data.translation || '').toLowerCase();
-
-      // Programmatic check:
-      // 1. reset -> obnovit (NOT resetovat)
-      // 2. clear -> vyprázdnit (NOT vymazat / smazat)
-      // 3. console -> administrace (NOT konzole)
       const hasObnovit = translation.includes('obnov');
       const hasResetovat = translation.includes('reset');
-      
       const hasVyprazdnit = translation.includes('vyprázdn') || translation.includes('vyprazdn');
       const hasVymazat = translation.includes('vymaz') || translation.includes('smaz');
-
       const hasAdministrace = translation.includes('administr');
       const hasKonzole = translation.includes('konzol');
 
@@ -266,13 +282,10 @@ export default function AcademyPage() {
   // --- CHALLENGE 4: LQA Auditing ---
   const [l4Seg1Cat, setL4Seg1Cat] = useState("");
   const [l4Seg1Sev, setL4Seg1Sev] = useState("");
-  
   const [l4Seg2Cat, setL4Seg2Cat] = useState("");
   const [l4Seg2Sev, setL4Seg2Sev] = useState("");
-
   const [l4Seg3Cat, setL4Seg3Cat] = useState("");
   const [l4Seg3Sev, setL4Seg3Sev] = useState("");
-
   const [ch4Feedback, setCh4Feedback] = useState<{ status: 'success' | 'error' | null; message: string }>({ status: null, message: "" });
 
   const verifyChallenge4 = () => {
@@ -300,8 +313,353 @@ export default function AcademyPage() {
     }
   };
 
-  // Certification check
-  const allCompleted = progress.challenge1 && progress.challenge2 && progress.challenge3 && progress.challenge4;
+  // --- CHALLENGE 5: TM Fuzzy Match Repair ---
+  const [ch5Prompt, setCh5Prompt] = useState(
+    `# Instructions:\n- Review match and edit.`
+  );
+  const [ch5Loading, setCh5Loading] = useState(false);
+  const [ch5Result, setCh5Result] = useState<any>(null);
+  const [ch5Feedback, setCh5Feedback] = useState<{ status: 'success' | 'error' | null; message: string }>({ status: null, message: "" });
+
+  const runChallenge5 = async () => {
+    setCh5Loading(true);
+    setCh5Result(null);
+    setCh5Feedback({ status: null, message: "" });
+    try {
+      const res = await fetch('/api/sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: `New Source: "${CH5_SOURCE}"\nTM Match Source: "${CH5_FUZZY_SRC}"\nTM Match Target: "${CH5_FUZZY_TGT}"`,
+          systemPrompt: "You are a Translation Memory repair engine. Compare the TM Match Source to the New Source. Repair the TM Match Target by changing only the outdated words. Do NOT translate from scratch.",
+          localePrompt: ch5Prompt,
+          locale: 'cs-CZ',
+          model: 'gemini-2.5-flash',
+        }),
+      });
+      const data = await res.json();
+      setCh5Result(data);
+
+      if (data.error) {
+        setCh5Feedback({ status: 'error', message: `API Error: ${data.error}` });
+        return;
+      }
+
+      const translation = (data.translation || '').toLowerCase();
+      const hasWorkspace = translation.includes('pracovn') || translation.includes('workspace');
+      const hasProfile = translation.includes('profil');
+      const hasKliknutim = translation.includes('klikn');
+      const hasUlozte = translation.includes('ulož') || translation.includes('uloz');
+
+      if (hasWorkspace && !hasProfile && hasKliknutim && hasUlozte) {
+        setCh5Feedback({
+          status: 'success',
+          message: "Excellent! The engine successfully patched the outdated term 'profilu' with the new term 'pracovním prostoru' while preserving the rest of the translation and saving human rework time."
+        });
+        const updated = { ...progress, challenge5: true };
+        saveProgress(updated);
+      } else {
+        let msg = "Validation failed. ";
+        if (hasProfile) {
+          msg += "The translation still contains the outdated term 'profilu'. ";
+        }
+        if (!hasWorkspace) {
+          msg += "The translation did not introduce the new term (pracovní prostor / workspace). ";
+        }
+        msg += "Refine the instructions to explicitly command: 'Replace the target word \"profilu\" representing \"profile\" with \"pracovním prostoru\" to match \"workspace\"'.";
+        setCh5Feedback({ status: 'error', message: msg });
+      }
+    } catch (err: any) {
+      setCh5Feedback({ status: 'error', message: `Fetch Error: ${err.message}` });
+    } finally {
+      setCh5Loading(false);
+    }
+  };
+
+  // --- CHALLENGE 6: Context metadata ---
+  const [ch6Prompt, setCh6Prompt] = useState(
+    `# Context:\n- Translate the word.`
+  );
+  const [ch6Loading, setCh6Loading] = useState(false);
+  const [ch6Result, setCh6Result] = useState<any>(null);
+  const [ch6Feedback, setCh6Feedback] = useState<{ status: 'success' | 'error' | null; message: string }>({ status: null, message: "" });
+
+  const runChallenge6 = async () => {
+    setCh6Loading(true);
+    setCh6Result(null);
+    setCh6Feedback({ status: null, message: "" });
+    try {
+      const res = await fetch('/api/sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: CH6_SOURCE,
+          systemPrompt: "You are a professional software translator. Translate the short ambiguous term based on the injected context metadata.",
+          localePrompt: `${ch6Prompt}\nContext Metadata:\n- Location: Flight booking checkout screen\n- Element Type: Primary action button\n- Part of Speech: Verb`,
+          locale: 'cs-CZ',
+          model: 'gemini-2.5-flash',
+        }),
+      });
+      const data = await res.json();
+      setCh6Result(data);
+
+      if (data.error) {
+        setCh6Feedback({ status: 'error', message: `API Error: ${data.error}` });
+        return;
+      }
+
+      const translation = (data.translation || '').toLowerCase();
+      const hasRezervovat = translation.includes('rezerv') || translation.includes('objedn');
+      const hasKniha = translation.includes('kniha') || translation.includes('knihy');
+
+      if (hasRezervovat && !hasKniha) {
+        setCh6Feedback({
+          status: 'success',
+          message: "Success! With metadata context indicating a booking checkout button action, the LLM translated 'Book' as the verb 'Rezervovat' rather than the noun 'Kniha'."
+        });
+        const updated = { ...progress, challenge6: true };
+        saveProgress(updated);
+      } else {
+        let msg = "Validation failed. ";
+        if (hasKniha) {
+          msg += "The term was translated literally as the reading noun 'Kniha'. ";
+        }
+        msg += "Update your instructions to tell the model: 'Review the metadata. Since the term is a Verb acting as an checkout action button, translate it as \"Rezervovat\"'.";
+        setCh6Feedback({ status: 'error', message: msg });
+      }
+    } catch (err: any) {
+      setCh6Feedback({ status: 'error', message: `Fetch Error: ${err.message}` });
+    } finally {
+      setCh6Loading(false);
+    }
+  };
+
+  // --- CHALLENGE 7: Gender Controls ---
+  const [ch7Prompt, setCh7Prompt] = useState(
+    `# Parameters:\n- Standard translation.`
+  );
+  const [ch7Loading, setCh7Loading] = useState(false);
+  const [ch7Result, setCh7Result] = useState<any>(null);
+  const [ch7Feedback, setCh7Feedback] = useState<{ status: 'success' | 'error' | null; message: string }>({ status: null, message: "" });
+
+  const runChallenge7 = async () => {
+    setCh7Loading(true);
+    setCh7Result(null);
+    setCh7Feedback({ status: null, message: "" });
+    try {
+      const res = await fetch('/api/sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: CH7_SOURCE,
+          systemPrompt: "You are translating app copy for a user interface. Inflect gender agreements according to the user profile.",
+          localePrompt: `${ch7Prompt}\nUser Profile Attribute:\n- User Gender: Female`,
+          locale: 'cs-CZ',
+          model: 'gemini-2.5-flash',
+        }),
+      });
+      const data = await res.json();
+      setCh7Result(data);
+
+      if (data.error) {
+        setCh7Feedback({ status: 'error', message: `API Error: ${data.error}` });
+        return;
+      }
+
+      const translation = (data.translation || '').toLowerCase();
+      // Check for feminine registration endings
+      const hasFeminineEnding = translation.includes('registrovala') || translation.includes('přihlásila') || translation.includes('prihlasila') || translation.includes('úspěšná') || translation.includes('uspesna');
+      const hasMasculineEnding = translation.includes('registroval') && !translation.includes('registrovala') || 
+                                 translation.includes('přihlásil') && !translation.includes('přihlásila') ||
+                                 translation.includes('prihlasil') && !translation.includes('prihlasila');
+
+      if (hasFeminineEnding && !hasMasculineEnding) {
+        setCh7Feedback({
+          status: 'success',
+          message: "Excellent! The LLM successfully inflected the past-tense verb to the feminine gender ending (-la, i.e., 'zaregistrovala se' / 'přihlásila se') matching the user parameter."
+        });
+        const updated = { ...progress, challenge7: true };
+        saveProgress(updated);
+      } else {
+        let msg = "Validation failed. ";
+        if (hasMasculineEnding) {
+          msg += "The translation used the default masculine past tense ending (-l, i.e. 'zaregistroval jsem se'). ";
+        } else {
+          msg += "The translation did not exhibit clear feminine inflection. ";
+        }
+        msg += "Refine the prompt to say: 'Review the User Profile Gender. If Female, conjugate past tense verbs with feminine endings (e.g., -la)'.";
+        setCh7Feedback({ status: 'error', message: msg });
+      }
+    } catch (err: any) {
+      setCh7Feedback({ status: 'error', message: `Fetch Error: ${err.message}` });
+    } finally {
+      setCh7Loading(false);
+    }
+  };
+
+  // --- CHALLENGE 8: Tag preservation ---
+  const [ch8Prompt, setCh8Prompt] = useState(
+    `# Tags:\n- Keep tags.`
+  );
+  const [ch8Loading, setCh8Loading] = useState(false);
+  const [ch8Result, setCh8Result] = useState<any>(null);
+  const [ch8Feedback, setCh8Feedback] = useState<{ status: 'success' | 'error' | null; message: string }>({ status: null, message: "" });
+
+  const runChallenge8 = async () => {
+    setCh8Loading(true);
+    setCh8Result(null);
+    setCh8Feedback({ status: null, message: "" });
+    try {
+      const res = await fetch('/api/sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: CH8_SOURCE,
+          systemPrompt: "You are a software localization parser. Preserve tags and placeholders exactly as they are in the source string.",
+          localePrompt: ch8Prompt,
+          locale: 'cs-CZ',
+          model: 'gemini-2.5-flash',
+        }),
+      });
+      const data = await res.json();
+      setCh8Result(data);
+
+      if (data.error) {
+        setCh8Feedback({ status: 'error', message: `API Error: ${data.error}` });
+        return;
+      }
+
+      const translation = data.translation || '';
+      
+      const hasStrongTag = translation.includes('<strong>{userName}</strong>');
+      const hasAnchorStart = translation.includes('<a>');
+      const hasAnchorEnd = translation.includes('</a>');
+      const hasPercentD = translation.includes('%d');
+
+      const placeholderTranslated = translation.toLowerCase().includes('{uživatel') || translation.toLowerCase().includes('{uzivatel');
+
+      if (hasStrongTag && hasAnchorStart && hasAnchorEnd && hasPercentD && !placeholderTranslated) {
+        setCh8Feedback({
+          status: 'success',
+          message: "Brilliant! You successfully protected the developer's placeholders and markup tags. The variables '{userName}' and '%d' remain completely untouched and syntactically valid."
+        });
+        const updated = { ...progress, challenge8: true };
+        saveProgress(updated);
+      } else {
+        let msg = "Validation failed. ";
+        if (placeholderTranslated) {
+          msg += "The placeholder name '{userName}' was incorrectly translated into Czech. ";
+        }
+        if (!hasStrongTag) {
+          msg += "The '<strong>' wrapping syntax was corrupted or removed. ";
+        }
+        if (!hasPercentD) {
+          msg += "The C-style printf variable '%d' was modified. ";
+        }
+        msg += "Add explicit instructions: 'Do not translate code variables enclosed in curly braces like {userName} or variables starting with %, and preserve HTML tags literally'.";
+        setCh8Feedback({ status: 'error', message: msg });
+      }
+    } catch (err: any) {
+      setCh8Feedback({ status: 'error', message: `Fetch Error: ${err.message}` });
+    } finally {
+      setCh8Loading(false);
+    }
+  };
+
+  // --- CHALLENGE 9: UI Length Constraints ---
+  const [ch9Prompt, setCh9Prompt] = useState(
+    `# Constraints:\n- Keep it short.`
+  );
+  const [ch9Loading, setCh9Loading] = useState(false);
+  const [ch9Result, setCh9Result] = useState<any>(null);
+  const [ch9Feedback, setCh9Feedback] = useState<{ status: 'success' | 'error' | null; message: string }>({ status: null, message: "" });
+
+  const runChallenge9 = async () => {
+    setCh9Loading(true);
+    setCh9Result(null);
+    setCh9Feedback({ status: null, message: "" });
+    try {
+      const res = await fetch('/api/sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: CH9_SOURCE,
+          systemPrompt: "Translate this UI button text into Czech. The translation must fit in a very tight layout. Keep it short.",
+          localePrompt: `${ch9Prompt}\nConstraint: The translation must be maximum 15 characters long.`,
+          locale: 'cs-CZ',
+          model: 'gemini-2.5-flash',
+        }),
+      });
+      const data = await res.json();
+      setCh9Result(data);
+
+      if (data.error) {
+        setCh9Feedback({ status: 'error', message: `API Error: ${data.error}` });
+        return;
+      }
+
+      const translation = data.translation || '';
+      const len = translation.length;
+
+      if (len <= 15) {
+        setCh9Feedback({
+          status: 'success',
+          message: `Success! The translation "${translation}" has only ${len} characters, complying with our layout limit of 15.`
+        });
+        const updated = { ...progress, challenge9: true };
+        saveProgress(updated);
+      } else {
+        setCh9Feedback({
+          status: 'error',
+          message: `Layout Overflow! The translation "${translation}" is ${len} characters long, exceeding the 15-character constraint. Czech expanded literal (Vytvořit nový pracovní prostor) is too long. Tell the model to output a short alternative (e.g., 'Nový prostor' or 'Nový workspace').`
+        });
+      }
+    } catch (err: any) {
+      setCh9Feedback({ status: 'error', message: `Fetch Error: ${err.message}` });
+    } finally {
+      setCh9Loading(false);
+    }
+  };
+
+  // --- CHALLENGE 10: Routing Orchestration ---
+  const [ch10Rules, setCh10Rules] = useState({
+    rule1: "",
+    rule2: "",
+    rule3: ""
+  });
+  const [ch10Feedback, setCh10Feedback] = useState<{ status: 'success' | 'error' | null; message: string }>({ status: null, message: "" });
+
+  const verifyChallenge10 = () => {
+    // Correct mappings:
+    // Rule 1 (Marketing copy) -> route_pro (Gemini Pro for contextual accuracy)
+    // Rule 2 (System logs) -> route_flash (Gemini Flash to minimize cost)
+    // Rule 3 (Low QE score) -> route_referee (Gemini Pro for self-correction review)
+    const rule1Ok = ch10Rules.rule1 === 'route_pro';
+    const rule2Ok = ch10Rules.rule2 === 'route_flash';
+    const rule3Ok = ch10Rules.rule3 === 'route_referee';
+
+    if (rule1Ok && rule2Ok && rule3Ok) {
+      setCh10Feedback({
+        status: 'success',
+        message: "Perfect orchestration! Routing high-volume low-complexity logs to Flash, complex marketing to Pro, and flagging low-QE segments for self-correction is the industry-standard workflow for cost-efficient AI localization."
+      });
+      const updated = { ...progress, challenge10: true };
+      saveProgress(updated);
+    } else {
+      let errors = [];
+      if (!rule1Ok) errors.push("Marketing copy requires high-context reasoning and should be routed to Pro.");
+      if (!rule2Ok) errors.push("High-volume, simple logs should be routed to Flash to keep costs low.");
+      if (!rule3Ok) errors.push("A translation failing quality thresholds (low QE score) needs to be routed to a high-reasoning model for self-correction review.");
+      
+      setCh10Feedback({
+        status: 'error',
+        message: `Routing errors: ${errors.join(" ")}`
+      });
+    }
+  };
+
+  // Check if all 10 challenges are completed
+  const allCompleted = Object.values(progress).every(Boolean);
 
   return (
     <div style={{ paddingBottom: '5rem', maxWidth: '1200px', margin: '0 auto' }}>
@@ -359,12 +717,12 @@ export default function AcademyPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>CURRICULUM PROGRESS:</span>
             <strong style={{ color: allCompleted ? 'var(--color-accent-emerald)' : 'var(--color-text-primary)' }}>
-              {Object.values(progress).filter(Boolean).length} / 4 Challenges Completed
+              {Object.values(progress).filter(Boolean).length} / 10 Challenges Completed
             </strong>
           </div>
           <div style={{ width: '280px', height: '8px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', marginTop: '0.25rem' }}>
             <div style={{ 
-              width: `${(Object.values(progress).filter(Boolean).length / 4) * 100}%`, 
+              width: `${(Object.values(progress).filter(Boolean).length / 10) * 100}%`, 
               height: '100%', 
               backgroundColor: allCompleted ? 'var(--color-accent-emerald)' : 'var(--color-accent-indigo)',
               transition: 'width 0.4s ease'
@@ -406,12 +764,18 @@ export default function AcademyPage() {
           <h3 style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0.5rem 0.75rem', marginBottom: '0.5rem', fontWeight: 700 }}>
             Curriculum Syllabus
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             {[
               { id: 1, title: 'Register & Tone Engineering', icon: Languages, completed: progress.challenge1 },
               { id: 2, title: 'Token Financials & Batching', icon: Coins, completed: progress.challenge2 },
               { id: 3, title: 'Terminology & Brand Control', icon: BookOpen, completed: progress.challenge3 },
               { id: 4, title: 'Automated MQM LQA Audits', icon: Scale, completed: progress.challenge4 },
+              { id: 5, title: 'TM Fuzzy Match Repair', icon: Layers, completed: progress.challenge5 },
+              { id: 6, title: 'UI Metadata Disambiguation', icon: Fingerprint, completed: progress.challenge6 },
+              { id: 7, title: 'Gender & Inclusive Controls', icon: UserCheck, completed: progress.challenge7 },
+              { id: 8, title: 'HTML/Markdown Placeholder Preservation', icon: Code2, completed: progress.challenge8 },
+              { id: 9, title: 'UI Layout Space Limits', icon: Maximize2, completed: progress.challenge9 },
+              { id: 10, title: 'LLM Orchestration Flowchart', icon: Cpu, completed: progress.challenge10 },
             ].map((lesson) => {
               const Icon = lesson.icon;
               const isActive = activeLesson === lesson.id;
@@ -422,12 +786,17 @@ export default function AcademyPage() {
                     setActiveLesson(lesson.id);
                     setCh1Feedback({ status: null, message: "" });
                     setCh3Feedback({ status: null, message: "" });
+                    setCh5Feedback({ status: null, message: "" });
+                    setCh6Feedback({ status: null, message: "" });
+                    setCh7Feedback({ status: null, message: "" });
+                    setCh8Feedback({ status: null, message: "" });
+                    setCh9Feedback({ status: null, message: "" });
                   }}
                   style={{
                     background: 'none',
                     border: 'none',
                     textAlign: 'left',
-                    padding: '0.85rem 1rem',
+                    padding: '0.65rem 0.85rem',
                     borderRadius: '8px',
                     cursor: 'pointer',
                     display: 'flex',
@@ -439,16 +808,23 @@ export default function AcademyPage() {
                     borderLeft: isActive ? '4px solid var(--color-accent-indigo)' : '4px solid transparent'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <Icon size={18} style={{ color: isActive ? 'var(--color-accent-indigo)' : 'var(--color-text-muted)' }} />
-                    <span style={{ fontSize: '0.9rem', fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
-                      Module {lesson.id}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
+                    <Icon size={16} style={{ color: isActive ? 'var(--color-accent-indigo)' : 'var(--color-text-muted)', flexShrink: 0 }} />
+                    <span style={{ 
+                      fontSize: '0.825rem', 
+                      fontWeight: isActive ? 600 : 500, 
+                      color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden'
+                    }}>
+                      M{lesson.id}: {lesson.title}
                     </span>
                   </div>
                   {lesson.completed ? (
-                    <CheckCircle2 size={16} style={{ color: 'var(--color-accent-emerald)' }} />
+                    <CheckCircle2 size={14} style={{ color: 'var(--color-accent-emerald)', flexShrink: 0 }} />
                   ) : (
-                    <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid var(--color-border)' }} />
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--color-border)', flexShrink: 0 }} />
                   )}
                 </button>
               );
@@ -521,7 +897,7 @@ export default function AcademyPage() {
                 )}
 
                 <p style={{ color: 'var(--color-text-secondary)', maxWidth: '600px', margin: '1.5rem auto', lineHeight: '1.6' }}>
-                  has completed the practical curriculum of the AI Localization Academy, demonstrating proficiency in prompt-driven register controls, token budgeting, glossary engineering, and MQM-based automated quality assurance evaluation.
+                  has completed the comprehensive 10-module curriculum of the AI Localization Academy, demonstrating professional mastery in prompt engineering registers, token optimization budget modeling, brand terminology control, markdown tags shielding, UI length constraints, and LLM-as-a-judge LQA orchestration.
                 </p>
                 <div style={{ borderTop: '1px solid rgba(212,175,55,0.3)', width: '200px', margin: '2rem auto 0.5rem' }} />
                 <div style={{ fontSize: '0.8rem', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
@@ -634,9 +1010,6 @@ export default function AcademyPage() {
                         <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '0.5rem' }}>MODEL RESPONSE CZECH:</div>
                         <div className="details-content-box" style={{ fontWeight: 600, color: 'white', fontSize: '1.05rem' }}>
                           {ch1Result.translation}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
-                          <strong>Explanation:</strong> {ch1Result.explanation}
                         </div>
                       </div>
                     )}
@@ -934,7 +1307,7 @@ export default function AcademyPage() {
                     </div>
                     <div>
                       <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Automated MQM LQA Audits</h2>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Focus: Focus: Multidimensional Quality Metrics (MQM) Auditor</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Focus: Multidimensional Quality Metrics (MQM) Auditor</span>
                     </div>
                   </div>
 
@@ -1081,6 +1454,640 @@ export default function AcademyPage() {
                     )}
                   </div>
                   
+                  {progress.challenge4 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={() => setActiveLesson(5)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Next Module <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MODULE 5: TM Fuzzy Repair */}
+              {activeLesson === 5 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                    <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.5rem', borderRadius: '8px' }}>
+                      <Layers size={24} style={{ color: 'var(--color-accent-indigo)' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Translation Memory Fuzzy Match Repair</h2>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Focus: Leveraging Old Translations & Saving Tokens</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', marginBottom: '2rem' }}>
+                    <p>
+                      In modern computer-assisted translation (CAT) tools, **Translation Memory (TM)** holds previously approved translations. When a new sentence is extremely similar (e.g. an 80% fuzzy match), we can use the LLM to &quot;repair&quot; the translation rather than starting from scratch.
+                    </p>
+                    <p>
+                      This strategy is called **Fuzzy Match Repair**. It drastically reduces costs by maintaining vocabulary consistency and saving editor review cycles.
+                    </p>
+                    
+                    <p style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                      <Info size={18} style={{ color: 'var(--color-accent-indigo)', flexShrink: 0, marginTop: '0.1rem' }} />
+                      <span>
+                        <strong>Challenge Goal:</strong> You are given an outdated TM translation matching 80% of the source. Command the LLM to replace the outdated word (&quot;profile&quot; &rarr; <i>profilu</i>) with the new term (&quot;workspace&quot; &rarr; <i>pracovním prostoru</i>) without altering the rest of the sentence.
+                      </span>
+                    </p>
+                  </div>
+
+                  {/* Challenge Area */}
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.5rem', backgroundColor: 'rgba(15,23,42,0.4)', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>TM Repair Prompter</h4>
+                      <span className={`status-pill ${progress.challenge5 ? 'status-pill-success' : 'badge-secondary'}`}>
+                        {progress.challenge5 ? 'Passed' : 'In Progress'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">New Source (English)</label>
+                        <div className="details-content-box" style={{ fontSize: '0.85rem' }}>{CH5_SOURCE}</div>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">TM Target Match (Czech - Outdated)</label>
+                        <div className="details-content-box" style={{ fontSize: '0.85rem' }}>{CH5_FUZZY_TGT}</div>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Repair Instructions</label>
+                      <textarea 
+                        className="textarea-field" 
+                        value={ch5Prompt} 
+                        onChange={(e) => setCh5Prompt(e.target.value)}
+                        style={{ minHeight: '100px', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <button onClick={runChallenge5} className="btn btn-primary" style={{ width: '100%' }} disabled={ch5Loading}>
+                      {ch5Loading ? (
+                        <>
+                          <Loader2 size={16} className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
+                          <span>Executing TM Match Repair...</span>
+                        </>
+                      ) : 'Execute Repair Run'}
+                    </button>
+
+                    {ch5Feedback.status && (
+                      <div style={{ 
+                        marginTop: '1.25rem', 
+                        padding: '1rem', 
+                        borderRadius: '8px', 
+                        backgroundColor: ch5Feedback.status === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${ch5Feedback.status === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                        fontSize: '0.9rem',
+                        color: ch5Feedback.status === 'success' ? '#a7f3d0' : '#fecaca',
+                        display: 'flex',
+                        gap: '0.75rem'
+                      }}>
+                        {ch5Feedback.status === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0 }} /> : <AlertCircle size={18} style={{ flexShrink: 0 }} />}
+                        <span>{ch5Feedback.message}</span>
+                      </div>
+                    )}
+
+                    {ch5Result && (
+                      <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '0.5rem' }}>REPAIRED CZECH TRANSLATION:</div>
+                        <div className="details-content-box" style={{ fontWeight: 600, color: 'white', fontSize: '1.05rem' }}>
+                          {ch5Result.translation}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {progress.challenge5 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={() => setActiveLesson(6)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Next Module <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MODULE 6: UI Disambiguation */}
+              {activeLesson === 6 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                    <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.5rem', borderRadius: '8px' }}>
+                      <Fingerprint size={24} style={{ color: 'var(--color-accent-indigo)' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>UI Metadata & Context Injection</h2>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Focus: Homonym Disambiguation via Structured Headers</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', marginBottom: '2rem' }}>
+                    <p>
+                      English is highly ambiguous. Short terms like <strong>&quot;Book&quot;</strong> can represent a noun (a physical reading object) or a verb (the action to reserve a seat). Without context, an LLM defaults to the noun (<i>Kniha</i>).
+                    </p>
+                    <p>
+                      In software localization, we solve this by injecting **in-context metadata** (element position, parent screen, and part of speech) alongside the source string.
+                    </p>
+                    
+                    <p style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                      <Info size={18} style={{ color: 'var(--color-accent-indigo)', flexShrink: 0, marginTop: '0.1rem' }} />
+                      <span>
+                        <strong>Challenge Goal:</strong> Force the translator to translate &quot;Book&quot; as a verb (<i>Rezervovat</i>) by instructing it to use the injected component metadata block in the prompt context.
+                      </span>
+                    </p>
+                  </div>
+
+                  {/* Challenge Area */}
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.5rem', backgroundColor: 'rgba(15,23,42,0.4)', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>Metadata Sandbox</h4>
+                      <span className={`status-pill ${progress.challenge6 ? 'status-pill-success' : 'badge-secondary'}`}>
+                        {progress.challenge6 ? 'Passed' : 'In Progress'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Ambiguous Word</label>
+                        <div className="details-content-box" style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{CH6_SOURCE}</div>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">UI Context Metadata</label>
+                        <div style={{ fontSize: '0.8rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
+                          - Position: checkout_flow_button
+                          <br />
+                          - POS: Verb (Action)
+                          <br />
+                          - Target: Reserve a ticket
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Prompt Guidelines</label>
+                      <textarea 
+                        className="textarea-field" 
+                        value={ch6Prompt} 
+                        onChange={(e) => setCh6Prompt(e.target.value)}
+                        style={{ minHeight: '100px', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <button onClick={runChallenge6} className="btn btn-primary" style={{ width: '100%' }} disabled={ch6Loading}>
+                      {ch6Loading ? (
+                        <>
+                          <Loader2 size={16} className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
+                          <span>Disambiguating word...</span>
+                        </>
+                      ) : 'Run Context-Enriched Translation'}
+                    </button>
+
+                    {ch6Feedback.status && (
+                      <div style={{ 
+                        marginTop: '1.25rem', 
+                        padding: '1rem', 
+                        borderRadius: '8px', 
+                        backgroundColor: ch6Feedback.status === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${ch6Feedback.status === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                        fontSize: '0.9rem',
+                        color: ch6Feedback.status === 'success' ? '#a7f3d0' : '#fecaca',
+                        display: 'flex',
+                        gap: '0.75rem'
+                      }}>
+                        {ch6Feedback.status === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0 }} /> : <AlertCircle size={18} style={{ flexShrink: 0 }} />}
+                        <span>{ch6Feedback.message}</span>
+                      </div>
+                    )}
+
+                    {ch6Result && (
+                      <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '0.5rem' }}>DISAMBIGUATED CZECH TRANSLATION:</div>
+                        <div className="details-content-box" style={{ fontWeight: 600, color: 'white', fontSize: '1.05rem' }}>
+                          {ch6Result.translation}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {progress.challenge6 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={() => setActiveLesson(7)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Next Module <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MODULE 7: Gender Agreements */}
+              {activeLesson === 7 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                    <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.5rem', borderRadius: '8px' }}>
+                      <UserCheck size={24} style={{ color: 'var(--color-accent-indigo)' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Gender & Inclusive Language Controls</h2>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Focus: Dynamic Inflection Matching User Attributes</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', marginBottom: '2rem' }}>
+                    <p>
+                      Unlike English, many target languages inflect verbs and adjectives based on the gender of the user. In Czech, a past-tense sentence like &quot;I have registered&quot; translates differently:
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', padding: '0.5rem 0' }}>
+                      <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                        <strong>Masculine User (Default)</strong>
+                        <div style={{ fontSize: '0.9rem', color: 'var(--color-text-primary)', marginTop: '0.25rem' }}>
+                          Zaregistroval jsem se <span style={{ color: 'var(--color-text-muted)' }}>(ends in -l)</span>
+                        </div>
+                      </div>
+                      <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                        <strong>Feminine User</strong>
+                        <div style={{ fontSize: '0.9rem', color: 'var(--color-text-primary)', marginTop: '0.25rem' }}>
+                          Zaregistrovala jsem se <span style={{ color: 'var(--color-text-muted)' }}>(ends in -la)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p>
+                      An AI Localization PM feeds the active user profile gender as a dynamic prompt variable, instructing the LLM to output the correct gender agreement conjugations.
+                    </p>
+                  </div>
+
+                  {/* Challenge Area */}
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.5rem', backgroundColor: 'rgba(15,23,42,0.4)', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>Gender Inflection Sandbox</h4>
+                      <span className={`status-pill ${progress.challenge7 ? 'status-pill-success' : 'badge-secondary'}`}>
+                        {progress.challenge7 ? 'Passed' : 'In Progress'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Source string</label>
+                        <div className="details-content-box" style={{ fontSize: '0.85rem' }}>{CH7_SOURCE}</div>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">User Gender Attribute</label>
+                        <div className="details-content-box" style={{ fontSize: '0.85rem', color: '#fda4af', fontWeight: 'bold' }}>Female</div>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Dynamic Gender Guidelines</label>
+                      <textarea 
+                        className="textarea-field" 
+                        value={ch7Prompt} 
+                        onChange={(e) => setCh7Prompt(e.target.value)}
+                        style={{ minHeight: '100px', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <button onClick={runChallenge7} className="btn btn-primary" style={{ width: '100%' }} disabled={ch7Loading}>
+                      {ch7Loading ? (
+                        <>
+                          <Loader2 size={16} className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
+                          <span>Generating inflected text...</span>
+                        </>
+                      ) : 'Run Gender-Aware Translation'}
+                    </button>
+
+                    {ch7Feedback.status && (
+                      <div style={{ 
+                        marginTop: '1.25rem', 
+                        padding: '1rem', 
+                        borderRadius: '8px', 
+                        backgroundColor: ch7Feedback.status === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${ch7Feedback.status === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                        fontSize: '0.9rem',
+                        color: ch7Feedback.status === 'success' ? '#a7f3d0' : '#fecaca',
+                        display: 'flex',
+                        gap: '0.75rem'
+                      }}>
+                        {ch7Feedback.status === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0 }} /> : <AlertCircle size={18} style={{ flexShrink: 0 }} />}
+                        <span>{ch7Feedback.message}</span>
+                      </div>
+                    )}
+
+                    {ch7Result && (
+                      <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '0.5rem' }}>GENDER-CONJUGATED CZECH RESPONSE:</div>
+                        <div className="details-content-box" style={{ fontWeight: 600, color: 'white', fontSize: '1.05rem' }}>
+                          {ch7Result.translation}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {progress.challenge7 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={() => setActiveLesson(8)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Next Module <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MODULE 8: Tag preservation */}
+              {activeLesson === 8 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                    <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.5rem', borderRadius: '8px' }}>
+                      <Code2 size={24} style={{ color: 'var(--color-accent-indigo)' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>HTML/Markdown Placeholder Preservation</h2>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Focus: Protecting Structural Markup and Developer Code Variables</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', marginBottom: '2rem' }}>
+                    <p>
+                      Software strings are packed with markup tags (e.g. <code>{"<a>"}</code>, <code>{"<strong>"}</code>) and runtime code variables (e.g. <code>{"{userName}"}</code>, <code>%d</code>, <code>{"{{count}}"}</code>).
+                    </p>
+                    <p>
+                      LLMs frequently corrupt these elements by translating them (e.g., rewriting <code>{"{userName}"}</code> as <code>{"{uživatelskéJméno}"}</code>) or changing their syntax spacing. When this happens, the application crashes or fails to render tags.
+                    </p>
+                    <p>
+                      Writing strict, negative prompt instructions prevents the model from interacting with tags or placeholders.
+                    </p>
+                  </div>
+
+                  {/* Challenge Area */}
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.5rem', backgroundColor: 'rgba(15,23,42,0.4)', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>Tag Protection Sandbox</h4>
+                      <span className={`status-pill ${progress.challenge8 ? 'status-pill-success' : 'badge-secondary'}`}>
+                        {progress.challenge8 ? 'Passed' : 'In Progress'}
+                      </span>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Developer Source string</label>
+                      <div className="details-content-box" style={{ fontSize: '0.85rem', fontFamily: 'var(--font-mono)' }}>{CH8_SOURCE}</div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Formatting rules prompt</label>
+                      <textarea 
+                        className="textarea-field" 
+                        value={ch8Prompt} 
+                        onChange={(e) => setCh8Prompt(e.target.value)}
+                        style={{ minHeight: '100px', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <button onClick={runChallenge8} className="btn btn-primary" style={{ width: '100%' }} disabled={ch8Loading}>
+                      {ch8Loading ? (
+                        <>
+                          <Loader2 size={16} className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
+                          <span>Executing code validation...</span>
+                        </>
+                      ) : 'Validate Code Integrity'}
+                    </button>
+
+                    {ch8Feedback.status && (
+                      <div style={{ 
+                        marginTop: '1.25rem', 
+                        padding: '1rem', 
+                        borderRadius: '8px', 
+                        backgroundColor: ch8Feedback.status === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${ch8Feedback.status === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                        fontSize: '0.9rem',
+                        color: ch8Feedback.status === 'success' ? '#a7f3d0' : '#fecaca',
+                        display: 'flex',
+                        gap: '0.75rem'
+                      }}>
+                        {ch8Feedback.status === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0 }} /> : <AlertCircle size={18} style={{ flexShrink: 0 }} />}
+                        <span>{ch8Feedback.message}</span>
+                      </div>
+                    )}
+
+                    {ch8Result && (
+                      <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '0.5rem' }}>PARSED TRANSLATION OUTPUT:</div>
+                        <div className="details-content-box" style={{ fontWeight: 600, color: 'white', fontSize: '0.95rem', fontFamily: 'var(--font-mono)' }}>
+                          {ch8Result.translation}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {progress.challenge8 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={() => setActiveLesson(9)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Next Module <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MODULE 9: UI Length constraints */}
+              {activeLesson === 9 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                    <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.5rem', borderRadius: '8px' }}>
+                      <Maximize2 size={24} style={{ color: 'var(--color-accent-indigo)' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>UI Layout Space Constraints</h2>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Focus: Character Constraints to Prevent Truncations</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', marginBottom: '2rem' }}>
+                    <p>
+                      Translations from English to European languages often expand by <strong>20% to 30% in length</strong>. On tight UI components (like navigation buttons, badges, and headers), this expansion causes text truncation or layout overlap.
+                    </p>
+                    <p>
+                      An AI Localization PM applies character count instructions to specific layouts, prompting the model to use shorter abbreviations or stylistic alternatives when space is restricted.
+                    </p>
+                  </div>
+
+                  {/* Challenge Area */}
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.5rem', backgroundColor: 'rgba(15,23,42,0.4)', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>Character Limitation Sandbox</h4>
+                      <span className={`status-pill ${progress.challenge9 ? 'status-pill-success' : 'badge-secondary'}`}>
+                        {progress.challenge9 ? 'Passed' : 'In Progress'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Button English Source</label>
+                        <div className="details-content-box" style={{ fontSize: '0.9rem' }}>{CH9_SOURCE}</div>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Maximum Allowed Space</label>
+                        <div className="details-content-box" style={{ fontSize: '0.9rem', color: 'var(--color-accent-rose)', fontWeight: 'bold' }}>15 characters</div>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Shorthand Czech Guidelines</label>
+                      <textarea 
+                        className="textarea-field" 
+                        value={ch9Prompt} 
+                        onChange={(e) => setCh9Prompt(e.target.value)}
+                        style={{ minHeight: '100px', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <button onClick={runChallenge9} className="btn btn-primary" style={{ width: '100%' }} disabled={ch9Loading}>
+                      {ch9Loading ? (
+                        <>
+                          <Loader2 size={16} className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
+                          <span>Counting characters...</span>
+                        </>
+                      ) : 'Test Length Constraint'}
+                    </button>
+
+                    {ch9Feedback.status && (
+                      <div style={{ 
+                        marginTop: '1.25rem', 
+                        padding: '1rem', 
+                        borderRadius: '8px', 
+                        backgroundColor: ch9Feedback.status === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${ch9Feedback.status === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                        fontSize: '0.9rem',
+                        color: ch9Feedback.status === 'success' ? '#a7f3d0' : '#fecaca',
+                        display: 'flex',
+                        gap: '0.75rem'
+                      }}>
+                        {ch9Feedback.status === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0 }} /> : <AlertCircle size={18} style={{ flexShrink: 0 }} />}
+                        <span>{ch9Feedback.message}</span>
+                      </div>
+                    )}
+
+                    {ch9Result && (
+                      <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '0.5rem' }}>SHORTENED TRANSLATION RESULT:</div>
+                        <div className="details-content-box" style={{ fontWeight: 600, color: 'white', fontSize: '1.05rem' }}>
+                          {ch9Result.translation} ({ch9Result.translation.length} characters)
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {progress.challenge9 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={() => setActiveLesson(10)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Next Module <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MODULE 10: Orchestration Routing */}
+              {activeLesson === 10 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                    <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.5rem', borderRadius: '8px' }}>
+                      <Cpu size={24} style={{ color: 'var(--color-accent-indigo)' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>LLM Routing & Fallback Orchestration</h2>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Focus: Building Multi-Model Cost/Quality Pipelines</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', marginBottom: '2rem' }}>
+                    <p>
+                      An AI Localization architect does not send all copy to a single expensive model. We design **orchestration routing maps** to divide traffic:
+                    </p>
+                    <p>
+                      &bull; <strong>Gemini 2.5 Flash:</strong> Translates high-volume, simple UI labels, logs, and user search queries at low cost.
+                      <br />
+                      &bull; <strong>Gemini 2.5 Pro:</strong> Handles nuanced marketing copies, legal policies, or complex context-dependent blocks.
+                      <br />
+                      &bull; <strong>Referee Evaluation Route:</strong> If a translation fails quality checks (e.g. has low QE/COMET scores or glossary warning badges), it gets routed to a high-reasoning engine (Pro) for self-correction review.
+                    </p>
+                  </div>
+
+                  {/* Challenge Area */}
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.5rem', backgroundColor: 'rgba(15,23,42,0.4)', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>Routing Rules Flowchart</h4>
+                      <span className={`status-pill ${progress.challenge10 ? 'status-pill-success' : 'badge-secondary'}`}>
+                        {progress.challenge10 ? 'Passed' : 'In Progress'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
+                      
+                      {/* Scenario 1 */}
+                      <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                        <div><strong>Scenario 1:</strong> Nuanced Marketing Campaign copy containing creative idioms and brand vocabulary.</div>
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: '0.25rem' }}>Orchestrator Route Action</span>
+                          <select className="input-field" style={{ fontSize: '0.85rem', padding: '0.4rem' }} value={ch10Rules.rule1} onChange={(e) => setCh10Rules({ ...ch10Rules, rule1: e.target.value })}>
+                            <option value="">-- Select Routing Action --</option>
+                            <option value="route_flash">Route to Gemini 2.5 Flash to minimize cost</option>
+                            <option value="route_pro">Route to Gemini 2.5 Pro for contextual accuracy</option>
+                            <option value="route_referee">Route to Gemini 2.5 Pro for self-correction review</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Scenario 2 */}
+                      <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                        <div><strong>Scenario 2:</strong> Technical database warning logs (large volume, basic repetitive phrases).</div>
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: '0.25rem' }}>Orchestrator Route Action</span>
+                          <select className="input-field" style={{ fontSize: '0.85rem', padding: '0.4rem' }} value={ch10Rules.rule2} onChange={(e) => setCh10Rules({ ...ch10Rules, rule2: e.target.value })}>
+                            <option value="">-- Select Routing Action --</option>
+                            <option value="route_flash">Route to Gemini 2.5 Flash to minimize cost</option>
+                            <option value="route_pro">Route to Gemini 2.5 Pro for contextual accuracy</option>
+                            <option value="route_referee">Route to Gemini 2.5 Pro for self-correction review</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Scenario 3 */}
+                      <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                        <div><strong>Scenario 3:</strong> Translation returned a low Quality Estimation (COMET/QE) score (&lt; 75) on the first run.</div>
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: '0.25rem' }}>Orchestrator Route Action</span>
+                          <select className="input-field" style={{ fontSize: '0.85rem', padding: '0.4rem' }} value={ch10Rules.rule3} onChange={(e) => setCh10Rules({ ...ch10Rules, rule3: e.target.value })}>
+                            <option value="">-- Select Routing Action --</option>
+                            <option value="route_flash">Route to Gemini 2.5 Flash to minimize cost</option>
+                            <option value="route_pro">Route to Gemini 2.5 Pro for contextual accuracy</option>
+                            <option value="route_referee">Route to Gemini 2.5 Pro for self-correction review</option>
+                          </select>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <button onClick={verifyChallenge10} className="btn btn-primary" style={{ width: '100%' }}>
+                      Submit Flowchart Rules
+                    </button>
+
+                    {ch10Feedback.status && (
+                      <div style={{ 
+                        marginTop: '1.25rem', 
+                        padding: '1rem', 
+                        borderRadius: '8px', 
+                        backgroundColor: ch10Feedback.status === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${ch10Feedback.status === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                        fontSize: '0.9rem',
+                        color: ch10Feedback.status === 'success' ? '#a7f3d0' : '#fecaca',
+                        display: 'flex',
+                        gap: '0.75rem'
+                      }}>
+                        {ch10Feedback.status === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0 }} /> : <AlertCircle size={18} style={{ flexShrink: 0 }} />}
+                        <span>{ch10Feedback.message}</span>
+                      </div>
+                    )}
+                  </div>
+                  
                   {allCompleted && !certificateGenerated && (
                     <div style={{ 
                       marginTop: '2rem',
@@ -1092,7 +2099,7 @@ export default function AcademyPage() {
                     }}>
                       <h3 style={{ fontSize: '1.2rem', color: '#a7f3d0', fontWeight: 700, marginBottom: '0.5rem' }}>🎉 Congratulations!</h3>
                       <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1.25rem' }}>
-                        You have successfully validated all challenges in the AI Localization Academy curriculum!
+                        You have successfully validated all 10 challenges in the AI Localization Academy curriculum!
                       </p>
                       <button 
                         onClick={() => setCertificateGenerated(true)} 
