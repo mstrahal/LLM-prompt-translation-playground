@@ -9,7 +9,8 @@ import {
   Coins, 
   ExternalLink,
   Clock, 
-  Languages 
+  Languages,
+  Sparkles
 } from "lucide-react";
 import DeleteProjectButton from "@/components/DeleteProjectButton";
 
@@ -54,6 +55,37 @@ export default async function DashboardPage() {
         <Link href="/projects/new" className="btn btn-primary">
           <Plus size={16} />
           <span>New Project</span>
+        </Link>
+      </div>
+
+      {/* Academy Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
+        border: '1px solid var(--color-border)',
+        borderRadius: '12px',
+        padding: '1.5rem',
+        marginBottom: '2rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <Sparkles size={16} style={{ color: 'var(--color-accent-indigo)' }} />
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-accent-indigo)', letterSpacing: '0.05em' }}>
+              Educational Hub
+            </span>
+          </div>
+          <h2 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>AI Localization Academy</h2>
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', maxWidth: '650px', margin: 0 }}>
+            Learn prompt engineering, token economics, glossary injection, and MQM-based automated quality evaluation through interactive lessons.
+          </p>
+        </div>
+        <Link href="/academy" className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+          <span>Enter Academy</span>
+          <Languages size={14} />
         </Link>
       </div>
 

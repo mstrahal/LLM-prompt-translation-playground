@@ -4,8 +4,8 @@ import "./globals.css";
 import SandboxLab from "@/components/SandboxLab";
 
 export const metadata: Metadata = {
-  title: "AI Translation Playground",
-  description: "Playground for experimenting with LLM translation prompts",
+  title: "AI Localization Academy",
+  description: "Interactive learning platform and playground for AI localization and LLM orchestration.",
 };
 
 export default function RootLayout({
@@ -20,11 +20,14 @@ export default function RootLayout({
           <header className="nav-header">
             <div className="nav-container">
               <Link href="/" className="nav-brand">
-                <span>⚡ AI Translation Playground</span>
+                <span>🎓 AI Localization Academy</span>
               </Link>
               <nav className="nav-links">
                 <Link href="/" className="nav-link">
                   Dashboard
+                </Link>
+                <Link href="/academy" className="nav-link">
+                  Academy
                 </Link>
                 <Link href="/settings" className="nav-link">
                   Prompts Settings

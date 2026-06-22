@@ -32,6 +32,7 @@ export default async function ProjectPage({ params }: PageProps) {
     where: { projectId: id },
     include: {
       translations: true,
+      translationLQA: true,
     },
     orderBy: {
       createdAt: 'desc',
@@ -64,6 +65,10 @@ export default async function ProjectPage({ params }: PageProps) {
   const serializedRuns = runs.map(run => ({
     ...run,
     createdAt: safeDateString(run.createdAt),
+    translationLQA: run.translationLQA ? {
+      ...run.translationLQA,
+      createdAt: safeDateString(run.translationLQA.createdAt),
+    } : null,
     translations: run.translations.map(t => ({
       ...t,
       createdAt: safeDateString(t.createdAt),

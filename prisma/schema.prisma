@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -33,6 +33,7 @@ model Project {
   updatedAt      DateTime         @updatedAt
   sourceSegments SourceSegment[]
   translationRuns TranslationRun[]
+  glossaryTerms   GlossaryTerm[]
 }
 
 model SourceSegment {
@@ -47,16 +48,17 @@ model SourceSegment {
 }
 
 model TranslationRun {
-  id               String        @id @default(uuid())
+  id               String          @id @default(uuid())
   projectId        String
   modelUsed        String
   systemPromptUsed String
   localePromptUsed String
   totalTokens      Int
   totalCost        Float
-  createdAt        DateTime      @default(now())
-  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime        @default(now())
+  project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   translations     Translation[]
+  translationLQA   TranslationLQA?
 }
 
 model Translation {
@@ -68,7 +70,29 @@ model Translation {
   alternatives     String?        // Can be a JSON-serialized string of alternative translations
   tokensUsed       Int
   cost             Float
+  qeScore          Float?         // Quality Estimation score (e.g. COMET metric)
   createdAt        DateTime       @default(now())
   sourceSegment    SourceSegment  @relation(fields: [sourceSegmentId], references: [id], onDelete: Cascade)
   translationRun   TranslationRun @relation(fields: [translationRunId], references: [id], onDelete: Cascade)
+}
+
+model GlossaryTerm {
+  id        String   @id @default(uuid())
+  projectId String
+  source    String
+  target    String
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model TranslationLQA {
+  id                 String         @id @default(uuid())
+  translationRunId   String         @unique
+  score              Int
+  errorCountCritical Int
+  errorCountMajor    Int
+  errorCountMinor    Int
+  reportJson         String         // Detailed JSON list of MQM issues
+  createdAt          DateTime       @default(now())
+  translationRun     TranslationRun @relation(fields: [translationRunId], references: [id], onDelete: Cascade)
 }

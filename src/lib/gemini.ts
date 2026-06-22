@@ -149,3 +149,97 @@ export async function translateText(
     targetLanguage,
   });
 }
+
+export interface MQMError {
+  segmentKey: string;
+  source: string;
+  translation: string;
+  category: string;
+  severity: string;
+  explanation: string;
+}
+
+export interface LQAResponse {
+  score: number;
+  errorCountCritical: number;
+  errorCountMajor: number;
+  errorCountMinor: number;
+  errors: MQMError[];
+}
+
+export async function evaluateLQA(
+  segments: { key: string; source: string; translation: string }[],
+  targetLanguage: string
+): Promise<LQAResponse> {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not set in environment variables.');
+  }
+
+  const promptContent = `You are a professional Localization Quality Assurance (LQA) judge. Evaluate the translations in the translation run below into ${targetLanguage} using the MQM (Multidimensional Quality Metrics) framework.
+
+For each translation, check:
+1. Accuracy (omissions, mistranslations, additions)
+2. Fluency (grammar, spelling, punctuation)
+3. Style (tone, address form, guidelines compliance)
+4. Terminology (inconsistencies, incorrect term use)
+
+Categorize errors by severity:
+- Critical (distorts meaning completely, violates core guidelines, or offensive)
+- Major (noticeable error that hinders understanding or violates tone guidelines)
+- Minor (small grammatical, spelling, or punctuation error)
+
+Compute an overall score from 0 to 100 based on MQM severity penalties:
+Score = 100 - (10 * critical_count + 5 * major_count + 1 * minor_count). Clamp to min 0.
+
+Segments to evaluate:
+${segments.map(s => `[Key: ${s.key}]
+Source: "${s.source}"
+Translation: "${s.translation}"`).join('\n\n')}`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-pro',
+    contents: promptContent,
+    config: {
+      systemInstruction: 'You are an expert LQA evaluator. Run a rigorous MQM translation evaluation. Output valid JSON only.',
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          score: { type: Type.INTEGER },
+          errorCountCritical: { type: Type.INTEGER },
+          errorCountMajor: { type: Type.INTEGER },
+          errorCountMinor: { type: Type.INTEGER },
+          errors: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                segmentKey: { type: Type.STRING },
+                source: { type: Type.STRING },
+                translation: { type: Type.STRING },
+                category: { type: Type.STRING, description: "Accuracy | Fluency | Style | Terminology" },
+                severity: { type: Type.STRING, description: "Critical | Major | Minor" },
+                explanation: { type: Type.STRING }
+              },
+              required: ['segmentKey', 'source', 'translation', 'category', 'severity', 'explanation']
+            }
+          }
+        },
+        required: ['score', 'errorCountCritical', 'errorCountMajor', 'errorCountMinor', 'errors']
+      }
+    }
+  });
+
+  const text = response.text;
+  if (!text) {
+    throw new Error('Gemini API returned an empty text response.');
+  }
+
+  try {
+    return JSON.parse(text) as LQAResponse;
+  } catch (error) {
+    console.error('Failed to parse Gemini LQA response:', text, error);
+    throw new Error('Failed to parse LQA report as JSON.');
+  }
+}
+
